@@ -91,6 +91,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="StaticTestComponentAccess.cpp" />
     <ClCompile Include="StaticTestComponentConcept.cpp" />
     <ClCompile Include="StaticTestDatabaseAccess.cpp" />

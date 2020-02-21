@@ -1,5 +1,4 @@
-﻿
-#include <Usagi/Game/_detail/ComponentFilter.hpp>
+﻿#include <Usagi/Game/_detail/ComponentFilter.hpp>
 #include <Usagi/Game/_detail/ComponentAccessSystemAttribute.hpp>
 
 namespace usagi
