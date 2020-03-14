@@ -20,6 +20,44 @@ void test_access(volatile char *ptr, std::size_t size)
     }
 }
 
+TEST(RefCountedTest, CopyTest)
+{
+    std::atomic<uint32_t> counter = 0;
+
+    struct Traits
+    {
+        static std::uint32_t increment_reference(std::atomic<uint32_t> *entry)
+        {
+            return ++*entry;
+        }
+
+        static std::uint32_t decrement_reference(std::atomic<uint32_t> *entry)
+        {
+            return --*entry;
+        }
+
+        static void free(std::atomic<uint32_t> *entry)
+        {
+            printf("counter reset to 0!\n");
+        }
+    };
+
+    using Handle = RefCounted<std::atomic<uint32_t>, Traits>;
+
+    EXPECT_EQ(counter, 0);
+    {
+        Handle rc(&counter);
+        EXPECT_EQ(counter, 1);
+        Handle rc2 = rc; // copy
+        EXPECT_EQ(counter, 2);
+        Handle rc3 = std::move(rc2); // move
+        EXPECT_EQ(counter, 2);
+        Handle rc4 = std::move(rc); // move
+        EXPECT_EQ(counter, 2);
+    }
+    EXPECT_EQ(counter, 0);
+}
+
 TEST(TestAssetStreaming, RawAssetRequest)
 {
     AssetManager am;
@@ -47,12 +85,13 @@ TEST(TestAssetStreaming, RawAssetRequest)
     );
 
     EXPECT_TRUE(result);
-    EXPECT_NE(result.get(), nullptr);
-    EXPECT_NE(result->handle(), 0);
 
     result->wait();
 
+    EXPECT_NE(result.get(), nullptr);
     EXPECT_TRUE(result->ready());
+    EXPECT_NE(result->handle(), 0);
+    EXPECT_EQ(result->use_count(), 1);
 
     // Test access to the data
 
@@ -60,7 +99,7 @@ TEST(TestAssetStreaming, RawAssetRequest)
     EXPECT_GT(seg.length, 0);
     EXPECT_NE(seg.base_address, nullptr);
 
-    EXPECT_NO_FATAL_FAILURE(test_access(
+    ASSERT_NO_FATAL_FAILURE(test_access(
         static_cast<char*>(seg.base_address),
         seg.length
     ));
@@ -76,4 +115,61 @@ TEST(TestAssetStreaming, RawAssetRequest)
 
     EXPECT_EQ(seg.length, seg2.length);
     EXPECT_EQ(seg.base_address, seg2.base_address);
+}
+
+TEST(TestAssetStreaming, MultithreadedRequest)
+{
+    AssetManager am;
+    am.add_source(std::make_unique<AssetSourceFilesystemDirectory>("."));
+
+    const std::u8string asset_name(u8"input.png");
+
+    auto result0 = am.request_asset(
+        AssetPriority::NORMAL,
+        true,
+        asset_name
+    );
+    result0->wait();
+
+    ASSERT_TRUE(result0->ready());
+
+    const auto blob0 = result0->blob();
+    EXPECT_EQ(result0->use_count(), 1);
+
+    // Multi-threaded pressure test
+
+    const std::size_t test_size = 1000;
+    std::vector<std::future<void>> futures;
+    futures.reserve(test_size);
+
+    const auto job = [&](const std::size_t idx) {
+        auto result = am.request_asset(
+            AssetPriority::NORMAL,
+            true,
+            asset_name
+        );
+        EXPECT_GT(result->use_count(), 1u);
+        EXPECT_EQ(result->handle(), result0->handle());
+        EXPECT_TRUE(result->ready());
+        auto b = result->blob();
+        EXPECT_EQ(b.base_address, blob0.base_address);
+        EXPECT_EQ(b.length, blob0.length);
+        // printf("%lu\n", result->use_count());
+        std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 100));
+    };
+
+    // launch jobs
+    for(auto i = 0; i < test_size; ++i)
+    {
+        futures.emplace_back(std::async(std::launch::async, job, i));
+    }
+
+    // wait all jobs
+    for(auto &&f : futures)
+    {
+        f.wait();
+        // printf("%lu\n", result0->use_count());
+    }
+
+    EXPECT_EQ(result0->use_count(), 1);
 }
