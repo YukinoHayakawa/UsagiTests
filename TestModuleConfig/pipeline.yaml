@@ -1,0 +1,12 @@
+# input-assembly:
+
+vertex-shader:
+  shader: shader.vert
+
+rasterization:
+  polygon-mode: lines
+
+fragment-shader:
+  shader: shader.frag
+
+# color-blending:
