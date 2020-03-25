@@ -6,7 +6,7 @@ int main(int argc, char **argv) {
 }
 
 #include <Usagi/Module/Service/Asset/AssetManager.hpp>
-#include <Usagi/Module/Service/Asset/AssetSourceFilesystemDirectory.hpp>
+#include <Usagi/Module/Service/Asset/AssetSourceFilesystem.hpp>
 
 using namespace usagi;
 
@@ -61,7 +61,7 @@ TEST(RefCountedTest, CopyTest)
 TEST(TestAssetStreaming, RawAssetRequest)
 {
     AssetManager am;
-    am.add_source(std::make_unique<AssetSourceFilesystemDirectory>("."));
+    am.add_source(std::make_unique<AssetSourceFilesystem>("."));
 
     const std::u8string asset_name(u8"input.png");
 
@@ -120,7 +120,7 @@ TEST(TestAssetStreaming, RawAssetRequest)
 TEST(TestAssetStreaming, MultithreadedRequest)
 {
     AssetManager am;
-    am.add_source(std::make_unique<AssetSourceFilesystemDirectory>("."));
+    am.add_source(std::make_unique<AssetSourceFilesystem>("."));
 
     const std::u8string asset_name(u8"input.png");
 

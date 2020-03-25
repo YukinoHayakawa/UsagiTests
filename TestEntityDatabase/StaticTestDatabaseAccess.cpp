@@ -1,7 +1,7 @@
 ﻿#include <Usagi/Game/Database/EntityDatabase.hpp>
 #include <Usagi/Game/Entity/Archetype.hpp>
-#include <Usagi/Game/_detail/ComponentAccessSystemAttribute.hpp>
-#include <Usagi/Game/_detail/EntityDatabaseAccessExternal.hpp>
+#include <Usagi/Game/detail/ComponentAccessSystemAttribute.hpp>
+#include <Usagi/Game/detail/EntityDatabaseAccessExternal.hpp>
 
 namespace usagi
 {
