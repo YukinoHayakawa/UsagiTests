@@ -14,6 +14,7 @@ using namespace usagi;
 
 struct ComponentA
 {
+    int i;
 };
 
 using Archetype1 = Archetype<ComponentA>;
@@ -42,4 +43,118 @@ TEST(EntityDatabaseTest, ArchetypePageReuse)
     // page reused on the same memory
     EXPECT_EQ(i3.id, Database1::ENTITY_PAGE_SIZE);
     EXPECT_EQ(i2.page_idx, i.page_idx);
+}
+
+struct SystemA
+{
+    using WriteAccess = ComponentFilter<ComponentA>;
+    using ReadAccess = ComponentFilter<>;
+
+    template <typename RuntimeServices, typename EntityDatabaseAccess>
+    void update(RuntimeServices &&rt, EntityDatabaseAccess &&db)
+    {
+    }
+};
+
+class EntityDatabasePageTest : public ::testing::Test
+{
+public:
+    Database1 db;
+    EntityId id1 { };
+    EntityId id2 { };
+    EntityId id3 { };
+    EntityDatabaseAccessExternal<
+        Database1,
+        ComponentAccessSystemAttribute<SystemA>
+    > access { &db };
+
+    void SetUp() override
+    {
+        {
+            Archetype1 a;
+            a.val<ComponentA>().i = 1;
+            id1 = db.create(a);
+        }
+        {
+            Archetype1 a;
+            a.val<ComponentA>().i = 2;
+            id2 = db.create(a);
+        }
+        {
+            Archetype1 a;
+            a.val<ComponentA>().i = 3;
+            id3 = db.create(a);
+        }
+        // each entity on a different page
+        ASSERT_NE(id1.page_idx, id2.page_idx);
+        ASSERT_NE(id3.page_idx, id2.page_idx);
+    }
+};
+
+TEST_F(EntityDatabasePageTest, IterationOrder)
+{
+    auto view = access.view(Archetype1::ComponentFilterT());
+    auto iter = view.begin();
+
+    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    EXPECT_EQ((*iter).component<ComponentA>().i, 1);
+    ++iter;
+    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    EXPECT_EQ((*iter).component<ComponentA>().i, 2);
+    ++iter;
+    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    EXPECT_EQ((*iter).component<ComponentA>().i, 3);
+    ++iter;
+    EXPECT_EQ(iter, view.end());
+}
+
+TEST_F(EntityDatabasePageTest, DeleteFirstPage)
+{
+    db.entity_view(id1).destroy();
+    db.reclaim_pages();
+
+    auto view = access.view(Archetype1::ComponentFilterT());
+    auto iter = view.begin();
+
+    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    EXPECT_EQ((*iter).component<ComponentA>().i, 2);
+    ++iter;
+    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    EXPECT_EQ((*iter).component<ComponentA>().i, 3);
+    ++iter;
+    EXPECT_EQ(iter, view.end());
+}
+
+TEST_F(EntityDatabasePageTest, DeleteMiddlePage)
+{
+    db.entity_view(id2).destroy();
+    db.reclaim_pages();
+
+    auto view = access.view(Archetype1::ComponentFilterT());
+    auto iter = view.begin();
+
+    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    EXPECT_EQ((*iter).component<ComponentA>().i, 1);
+    ++iter;
+    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    EXPECT_EQ((*iter).component<ComponentA>().i, 3);
+    ++iter;
+    EXPECT_EQ(iter, view.end());
+}
+
+TEST_F(EntityDatabasePageTest, DeleteLastPage)
+{
+    db.entity_view(id3).destroy();
+    db.reclaim_pages();
+
+    auto view = access.view(Archetype1::ComponentFilterT());
+    auto iter = view.begin();
+
+    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    EXPECT_EQ((*iter).component<ComponentA>().i, 1);
+    ++iter;
+    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    EXPECT_EQ((*iter).component<ComponentA>().i, 2);
+    ++iter;
+    EXPECT_EQ(iter, view.end());
 }
