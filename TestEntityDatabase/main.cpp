@@ -158,3 +158,25 @@ TEST_F(EntityDatabasePageTest, DeleteLastPage)
     ++iter;
     EXPECT_EQ(iter, view.end());
 }
+
+TEST_F(EntityDatabasePageTest, VoidFilteredIterator)
+{
+    db.entity_view(id2).destroy();
+
+    auto unfiltered_view = access.unfiltered_view();
+
+    // unfiltered iterators visit all entities regardless whether
+    // they are really created
+    EXPECT_EQ(
+        std::distance(unfiltered_view.begin(), unfiltered_view.end()),
+        3 * Database1::EntityPageT::PAGE_SIZE
+    );
+
+    // filtered range with an empty include filter visits created entities
+    // including those not having components
+    auto void_view = access.view(ComponentFilter<>());
+    EXPECT_EQ(
+        std::distance(void_view.begin(), void_view.end()),
+        3
+    );
+}
