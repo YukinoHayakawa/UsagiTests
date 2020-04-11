@@ -101,5 +101,51 @@ static_assert(std::is_same_v<ComponentReferenceType<
 >, void>);
 
 // ============================================================================
+
+struct SystemAccessTraitTest4
+{
+    using ReadAllAccess = void;
+};
+
+static_assert(SystemHasComponentReadAccess<
+    SystemAccessTraitTest4, ComponentA
+>);
+
+static_assert(SystemHasComponentReadAccess<
+    SystemAccessTraitTest4, ComponentB
+>);
+
+static_assert(!SystemHasComponentWriteAccess<
+    SystemAccessTraitTest4, ComponentA
+>);
+
+static_assert(!SystemHasComponentWriteAccess<
+    SystemAccessTraitTest4, ComponentB
+>);
+
+// ============================================================================
+
+struct SystemAccessTraitTest5
+{
+    using WriteAllAccess = void;
+};
+
+static_assert(SystemHasComponentReadAccess<
+    SystemAccessTraitTest5, ComponentA
+>);
+
+static_assert(SystemHasComponentReadAccess<
+    SystemAccessTraitTest5, ComponentB
+>);
+
+static_assert(SystemHasComponentWriteAccess<
+    SystemAccessTraitTest5, ComponentA
+>);
+
+static_assert(SystemHasComponentWriteAccess<
+    SystemAccessTraitTest5, ComponentB
+>);
+
+// ============================================================================
 }
 }
