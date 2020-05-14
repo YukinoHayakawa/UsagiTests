@@ -76,6 +76,76 @@ TEST(TestExecutorTaskflow, TaskGraphTransitiveReduction)
     static_assert(g == g2);
 }
 
+struct ComponentA
+{
+};
+
+struct System0
+{
+    using ReadAccess = ComponentFilter<ComponentA>;
+};
+
+struct System1
+{
+    using WriteAccess = ComponentFilter<ComponentA>;
+};
+
+struct System2
+{
+};
+
+struct System3
+{
+};
+
+struct System4
+{
+    using WriteAccess = ComponentFilter<ComponentA>;
+};
+
+struct System5
+{
+    using ReadAccess = ComponentFilter<ComponentA>;
+};
+
+TEST(TestExecutorTaskflow, ComponentGraphTest)
+{
+    using TaskGraph = TaskGraph<
+        System0, System1, System2, System3, System4,
+        System5
+    >;
+
+    constexpr auto cdg = []() {
+        TaskGraph g;
+        g.precede<System0, System1>();
+        g.precede<System0, System2>();
+        g.precede<System1, System3>();
+        g.precede<System1, System4>();
+        g.precede<System2, System5>();
+        g.precede<System3, System5>();
+        g.precede<System4, System5>();
+        return g.component_dependency_graph<ComponentA>();
+    }();
+
+    constexpr auto compare  = []() {
+        TaskGraph::Graph cdg_cmp;
+        cdg_cmp.add_edge(0, 1);
+        cdg_cmp.add_edge(1, 4);
+        cdg_cmp.add_edge(4, 5);
+        cdg_cmp.system_traits[0] = ComponentAccess::READ;
+        cdg_cmp.system_traits[1] = ComponentAccess::WRITE;
+        cdg_cmp.system_traits[4] = ComponentAccess::WRITE;
+        cdg_cmp.system_traits[5] = ComponentAccess::READ;
+        return cdg_cmp;
+    }();
+
+    // for(auto i = 0; i < 6; ++i)
+    //     for(auto j = 0; j < 6; ++j)
+    //         EXPECT_EQ(cdg.matrix[i][j], compare.matrix[i][j]);
+
+    static_assert(cdg == compare);
+}
+
 TEST(TestExecutorTaskflow, TaskGraphTopologicalSort)
 {
     Graph g, rg;

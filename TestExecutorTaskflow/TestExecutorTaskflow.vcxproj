@@ -97,9 +97,6 @@
     <ProjectReference Include="..\..\Module\Usagi\Module\Common\ExecutorTaskflow\ExecutorTaskflow.vcxproj">
       <Project>{3d4e3561-33cd-4642-90b3-066396b7305b}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\Usagi\Usagi\Usagi.vcxproj">
-      <Project>{4250e1c0-ea0b-4575-bc04-11e7f83c2ed4}</Project>
-    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
