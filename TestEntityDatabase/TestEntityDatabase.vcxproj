@@ -66,6 +66,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="StaticTestComponentAccess.cpp" />
     <ClCompile Include="StaticTestComponentConcept.cpp" />
+    <ClCompile Include="StaticTestComponentFilter.cpp" />
     <ClCompile Include="StaticTestDatabaseAccess.cpp" />
   </ItemGroup>
   <ItemGroup>
