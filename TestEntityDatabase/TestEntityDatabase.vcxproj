@@ -68,6 +68,7 @@
     <ClCompile Include="StaticTestComponentConcept.cpp" />
     <ClCompile Include="StaticTestComponentFilter.cpp" />
     <ClCompile Include="StaticTestDatabaseAccess.cpp" />
+    <ClCompile Include="StaticTestSystem.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Library\Usagi\Usagi.vcxproj">
