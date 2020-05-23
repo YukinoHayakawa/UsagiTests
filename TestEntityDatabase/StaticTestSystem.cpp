@@ -26,6 +26,8 @@ struct System1
     using ReadAccess = ComponentFilter<ComponentA>;
     using WriteAccess = ComponentFilter<ComponentA, ComponentB>;
 };
+static_assert(System<System1>);
+static_assert(SystemDeclaresReadAccess<System1>);
 
 struct System2
 {
