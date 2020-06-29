@@ -1,4 +1,10 @@
-﻿#include <gtest/gtest.h>
+﻿#ifdef _DEBUG
+#pragma comment(lib, "gtestd.lib")
+#else
+#pragma comment(lib, "gtest.lib")
+#endif
+
+#include <gtest/gtest.h>
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
@@ -9,6 +15,17 @@ int main(int argc, char **argv) {
 #include <Usagi/Module/Service/Asset/AssetSourceFilesystem.hpp>
 
 using namespace usagi;
+
+void a(auto b)
+{
+    decltype(b) c = b;
+    (void)c;
+}
+
+void b()
+{
+    a(1);
+}
 
 void test_access(volatile char *ptr, std::size_t size)
 {

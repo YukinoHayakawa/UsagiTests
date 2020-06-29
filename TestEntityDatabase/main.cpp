@@ -1,14 +1,20 @@
-﻿#include <gtest/gtest.h>
+﻿#ifdef _DEBUG
+#pragma comment(lib, "gtestd.lib")
+#else
+#pragma comment(lib, "gtest.lib")
+#endif
+
+#include <gtest/gtest.h>
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
 
-#include <Usagi/Game/Database/EntityDatabase.hpp>
-#include <Usagi/Game/Entity/Archetype.hpp>
-#include <Usagi/Game/detail/ComponentAccessSystemAttribute.hpp>
-#include <Usagi/Game/detail/EntityDatabaseAccessExternal.hpp>
+#include <Usagi/Entity/EntityDatabase.hpp>
+#include <Usagi/Entity/Archetype.hpp>
+#include <Usagi/Entity/detail/ComponentAccessSystemAttribute.hpp>
+#include <Usagi/Entity/detail/EntityDatabaseAccessExternal.hpp>
 
 using namespace usagi;
 

@@ -1,6 +1,6 @@
 ﻿#include <type_traits>
 
-#include <Usagi/Game/detail/ComponentFilter.hpp>
+#include <Usagi/Entity/detail/ComponentFilter.hpp>
 
 namespace usagi
 {
