@@ -2,7 +2,7 @@
 #include <memory>
 #include <vector>
 
-#include <Usagi/Game/Entity/Component.hpp>
+#include <Usagi/Entity/Component.hpp>
 
 namespace usagi
 {
