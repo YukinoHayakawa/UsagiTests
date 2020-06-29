@@ -20,9 +20,9 @@ int main(int argc, char **argv) {
 
 using namespace usagi;
 
-constexpr SystemPrecedenceGraph<11> task_graph()
+constexpr GraphAdjacencyMatrix<11> task_graph()
 {
-    SystemPrecedenceGraph<11> g;
+    GraphAdjacencyMatrix<11> g;
 
     g.add_edge(2, 4);
     g.add_edge(2, 7);
@@ -146,7 +146,7 @@ TEST(TestExecutor, ComponentGraphTest)
 
     // test cpg deduction
 
-    constexpr auto cpg = []() {
+    constexpr auto g = []() {
         TaskGraph g;
         g.precede<System0, System1>();
         g.precede<System0, System2>();
@@ -155,18 +155,16 @@ TEST(TestExecutor, ComponentGraphTest)
         g.precede<System2, System5>();
         g.precede<System3, System5>();
         g.precede<System4, System5>();
-        return g.component_precedence_graph<ComponentA>();
+        return g;
     }();
+    constexpr auto cpg = g.component_precedence_graph<ComponentA>();
+    constexpr auto sat = g.system_access_traits<ComponentA>();
 
     constexpr auto compare = []() {
-        TaskGraph::Graph cpg_cmp;
+        TaskGraph::GraphT cpg_cmp;
         cpg_cmp.add_edge(0, 1);
         cpg_cmp.add_edge(1, 4);
         cpg_cmp.add_edge(4, 5);
-        cpg_cmp.system_traits[0] = ComponentAccess::READ;
-        cpg_cmp.system_traits[1] = ComponentAccess::WRITE;
-        cpg_cmp.system_traits[4] = ComponentAccess::WRITE;
-        cpg_cmp.system_traits[5] = ComponentAccess::READ;
         return cpg_cmp;
     }();
 
@@ -177,34 +175,40 @@ TEST(TestExecutor, ComponentGraphTest)
     static_assert(cpg == compare);
 
     // auto check1 = cpg_validate(compare);
-    constexpr auto check1 = cpg_validate(compare);
+    constexpr auto check1 = cpg_validate(compare, sat);
     static_assert(CHECK_TASK_GRAPH(check1));
 
     // test cwp uniqueness
 
     constexpr auto cpg_shortcut = []() {
-        TaskGraph::Graph cpg;
+        TaskGraph::GraphT cpg;
         cpg.add_edge(0, 1);
         cpg.add_edge(1, 4);
         cpg.add_edge(4, 5);
         cpg.add_edge(0, 2);
         cpg.add_edge(2, 5);
-        cpg.system_traits[0] = ComponentAccess::READ;
-        cpg.system_traits[1] = ComponentAccess::WRITE;
-        cpg.system_traits[2] = ComponentAccess::WRITE;
-        cpg.system_traits[4] = ComponentAccess::WRITE;
-        cpg.system_traits[5] = ComponentAccess::READ;
         return cpg;
     }();
 
-    constexpr auto check2 = cpg_validate(cpg_shortcut);
+    constexpr auto sat_shortcut = []()
+    {
+        SystemAccessTraits<6> traits { };
+        traits[0] = ComponentAccess::READ;
+        traits[1] = ComponentAccess::WRITE;
+        traits[2] = ComponentAccess::WRITE;
+        traits[4] = ComponentAccess::WRITE;
+        traits[5] = ComponentAccess::READ;
+        return traits;
+    }();
+
+    constexpr auto check2 = cpg_validate(cpg_shortcut, sat_shortcut);
     static_assert(check2.error_code == ErrorCode::CPG_SHORTCUT_WRITE_SYSTEM);
     static_assert(check2.info == 4);
 }
 
-constexpr SystemPrecedenceGraph<12> cpg_base()
+constexpr GraphAdjacencyMatrix<12> cpg_base()
 {
-    SystemPrecedenceGraph<12> g;
+    GraphAdjacencyMatrix<12> g;
 
     g.add_edge(0, 2);
     g.add_edge(1, 2);
@@ -215,43 +219,61 @@ constexpr SystemPrecedenceGraph<12> cpg_base()
     g.add_edge(7, 8);
     g.add_edge(8, 10);
 
-    g.system_traits[0] = ComponentAccess::READ;
-    g.system_traits[1] = ComponentAccess::READ;
-    g.system_traits[4] = ComponentAccess::READ;
-    g.system_traits[6] = ComponentAccess::READ;
-    g.system_traits[8] = ComponentAccess::READ;
-    g.system_traits[2] = ComponentAccess::WRITE;
-    g.system_traits[5] = ComponentAccess::WRITE;
-    g.system_traits[7] = ComponentAccess::WRITE;
-    g.system_traits[10] = ComponentAccess::WRITE;
-
     return g;
 }
 
-constexpr SystemPrecedenceGraph<12> cpg_shortcut_1()
+constexpr SystemAccessTraits<12> sat()
 {
-    SystemPrecedenceGraph<12> g = cpg_base();
+    SystemAccessTraits<12> traits { };
+
+    traits[0] = ComponentAccess::READ;
+    traits[1] = ComponentAccess::READ;
+    traits[4] = ComponentAccess::READ;
+    traits[6] = ComponentAccess::READ;
+    traits[8] = ComponentAccess::READ;
+    traits[2] = ComponentAccess::WRITE;
+    traits[5] = ComponentAccess::WRITE;
+    traits[7] = ComponentAccess::WRITE;
+    traits[10] = ComponentAccess::WRITE;
+
+    return traits;
+}
+
+constexpr SystemAccessTraits<12> sat_1()
+{
+    auto traits = sat();
+    traits[3] = ComponentAccess::READ;
+    return traits;
+}
+
+constexpr GraphAdjacencyMatrix<12> cpg_shortcut_1()
+{
+    GraphAdjacencyMatrix<12> g = cpg_base();
     g.add_edge(2, 3);
-    g.system_traits[3] = ComponentAccess::READ;
     return g;
 }
 
-constexpr SystemPrecedenceGraph<12> cpg_shortcut_2()
+constexpr GraphAdjacencyMatrix<12> cpg_shortcut_2()
 {
-    SystemPrecedenceGraph<12> g = cpg_base();
+    GraphAdjacencyMatrix<12> g = cpg_base();
     g.add_edge(4, 7);
     return g;
 }
 
-constexpr SystemPrecedenceGraph<12> cpg_shortcut_3()
+constexpr SystemAccessTraits<12> sat_3()
 {
-    SystemPrecedenceGraph<12> g = cpg_base();
+    auto traits = sat();
+    traits[9] = ComponentAccess::READ;
+    traits[11] = ComponentAccess::WRITE;
+    return traits;
+}
+
+constexpr GraphAdjacencyMatrix<12> cpg_shortcut_3()
+{
+    GraphAdjacencyMatrix<12> g = cpg_base();
 
     g.add_edge(7, 9);
     g.add_edge(9, 11);
-
-    g.system_traits[9] = ComponentAccess::READ;
-    g.system_traits[11] = ComponentAccess::WRITE;
 
     return g;
 }
@@ -259,21 +281,21 @@ constexpr SystemPrecedenceGraph<12> cpg_shortcut_3()
 TEST(TestExecutor, ComponentGraphShortcut)
 {
     {
-        constexpr auto check = cpg_validate(cpg_base());
+        constexpr auto check = cpg_validate(cpg_base(), sat());
         static_assert(check.error_code == ErrorCode::SUCCEED);
     }
     {
-        constexpr auto check = cpg_validate(cpg_shortcut_1());
+        constexpr auto check = cpg_validate(cpg_shortcut_1(), sat_1());
         static_assert(check.error_code == ErrorCode::CPG_SHORTCUT_WRITE_SYSTEM);
         static_assert(check.info == 10);
     }
     {
-        constexpr auto check = cpg_validate(cpg_shortcut_2());
+        constexpr auto check = cpg_validate(cpg_shortcut_2(), sat());
         static_assert(check.error_code == ErrorCode::CPG_SHORTCUT_WRITE_SYSTEM);
         static_assert(check.info == 5);
     }
     {
-        constexpr auto check = cpg_validate(cpg_shortcut_3());
+        constexpr auto check = cpg_validate(cpg_shortcut_3(), sat_3());
         static_assert(check.error_code == ErrorCode::CPG_SHORTCUT_WRITE_SYSTEM);
         static_assert(check.info == 11);
     }
