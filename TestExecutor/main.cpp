@@ -301,47 +301,90 @@ TEST(TestExecutor, ComponentGraphShortcut)
     }
 }
 
-/*
-TEST(TestExecutor, TaskGraphTopologicalSortDyn)
+namespace
 {
-    Graph g, rg;
+struct Ca {};
+struct Cb {};
 
-    g.add_edge(2, 4);
-    g.add_edge(2, 7);
-    g.add_edge(2, 8);
-    g.add_edge(4, 3);
-    g.add_edge(4, 10);
-    g.add_edge(7, 10);
-    g.add_edge(7, 1);
-    g.add_edge(7, 9);
-    g.add_edge(8, 9);
-    g.add_edge(3, 6);
-    g.add_edge(10, 6);
-    g.add_edge(1, 6);
-    g.add_edge(9, 6);
-
-    rg.add_edge(4, 2);
-    rg.add_edge(7, 2);
-    rg.add_edge(8, 2);
-    rg.add_edge(3, 4);
-    rg.add_edge(10, 4);
-    rg.add_edge(10, 7);
-    rg.add_edge(1, 7);
-    rg.add_edge(9, 7);
-    rg.add_edge(9, 8);
-    rg.add_edge(6, 3);
-    rg.add_edge(6, 10);
-    rg.add_edge(6, 1);
-    rg.add_edge(6, 9);
-
-    TopologicalSort ts { g };
-    TopologicalSort rts { rg };
-
-    ts.sort(2);
-    for(int i = 1; i < 11; ++i)
-    {
-        std::cout << "[" << i << "] ";
-        rts.sort(i);
-    }
+struct Sa
+{
+    using ReadAccess = ComponentFilter<>;
+    using WriteAccess = ComponentFilter<Ca>;
+};
+struct Sb
+{
+    using ReadAccess = ComponentFilter<Ca>;
+    using WriteAccess = ComponentFilter<>;
+};
+struct Sc
+{
+    using ReadAccess = ComponentFilter<>;
+    using WriteAccess = ComponentFilter<Ca>;
+};
+struct Sd
+{
+    using ReadAccess = ComponentFilter<Ca, Cb>;
+    using WriteAccess = ComponentFilter<>;
+};
+struct Se
+{
+    using ReadAccess = ComponentFilter<>;
+    using WriteAccess = ComponentFilter<Cb>;
+};
+struct Sf
+{
+    using ReadAccess = ComponentFilter<Cb>;
+    using WriteAccess = ComponentFilter<>;
+};
+struct Sg
+{
+    using ReadAccess = ComponentFilter<>;
+    using WriteAccess = ComponentFilter<Cb>;
+};
+struct Sh
+{
+    using ReadAccess = ComponentFilter<Ca>;
+    using WriteAccess = ComponentFilter<>;
+};
 }
-*/
+
+TEST(TestExecutor, ReducedTaskGraphTest)
+{
+    // using TG = TaskGraph<Sa, Sb, Sc, Sd, Se, Sf, Sg, Sh>;
+    using TG = TaskGraph<Sa, Sb, Sc, Sd, Se, Sf, Sg>;
+    //                   0   1   2   3   4   5   6
+
+    constexpr auto rtg = []()
+    {
+        TG tg;
+
+        tg.precede<Sa, Sb>();
+        tg.precede<Sb, Sc>();
+        tg.precede<Sc, Sd>();
+        tg.precede<Sa, Sc>();
+        tg.precede<Sa, Sf>();
+        tg.precede<Se, Sf>();
+        tg.precede<Sf, Sg>();
+        tg.precede<Sg, Sd>();
+        tg.precede<Sa, Sb>();
+        tg.precede<Sa, Sb>();
+        // tg.precede<Sa, Sh>();
+        // tg.precede<Sh, Sc>();
+
+        return tg.reduced_task_graph();
+    }();
+
+    constexpr auto cmp = []()
+    {
+        TG::GraphT g;
+        g.add_edge(0, 1);
+        g.add_edge(1, 2);
+        g.add_edge(2, 3);
+        g.add_edge(4, 5);
+        g.add_edge(5, 6);
+        g.add_edge(6, 3);
+        return g;
+    }();
+
+    static_assert(rtg == cmp);
+}
