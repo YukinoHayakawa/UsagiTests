@@ -7,7 +7,6 @@
 
 #include <gtest/gtest.h>
 #include <Usagi/Executor/detail/CpgValidation.hpp>
-#include <Usagi/Library/Graph/TopologicalSort.hpp>
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
@@ -20,9 +19,9 @@ int main(int argc, char **argv) {
 
 using namespace usagi;
 
-constexpr GraphAdjacencyMatrix<11> task_graph()
+constexpr AdjacencyMatrixFixed<11> task_graph()
 {
-    GraphAdjacencyMatrix<11> g;
+    AdjacencyMatrixFixed<11> g;
 
     g.add_edge(2, 4);
     g.add_edge(2, 7);
@@ -39,66 +38,6 @@ constexpr GraphAdjacencyMatrix<11> task_graph()
     g.add_edge(9, 6);
 
     return g;
-}
-
-constexpr bool cycle_test_false()
-{
-    constexpr auto g = task_graph();
-    return g.is_cyclic();
-}
-
-constexpr bool cycle_test_true()
-{
-    auto g = task_graph();
-
-    // creates a cycle
-    g.add_edge(6, 7);
-
-    return g.is_cyclic();
-}
-
-TEST(TestExecutor, TaskGraphCycleDetection)
-{
-    static_assert(!cycle_test_false());
-    static_assert(cycle_test_true());
-}
-
-TEST(TestExecutor, TaskGraphTransitiveReduction)
-{
-    constexpr auto g = task_graph();
-    constexpr auto g2 = []() {
-        auto g2 = task_graph();
-
-        g2.add_edge(2, 1);
-        g2.add_edge(2, 3);
-        g2.add_edge(2, 6);
-        g2.add_edge(2, 9);
-        g2.add_edge(2, 10);
-        g2.add_edge(4, 6);
-        g2.add_edge(7, 6);
-        g2.add_edge(8, 6);
-
-        g2.transitive_reduce();
-
-        return g2;
-    }();
-
-    static_assert(g == g2);
-}
-
-TEST(TestExecutor, TaskGraphTopologicalSort)
-{
-    constexpr auto sort = topological_sort(task_graph());
-
-    constexpr auto cmp = [&]() {
-        // in reserve order
-        auto order = std::array<int, 11> { 0, 6, 1, 3, 10, 4, 9, 7, 8, 2, 5 };
-        for(auto i = 0; i < 11; ++i)
-            if(order[i] != sort.stack[i]) return false;
-        return true;
-    }();
-
-    static_assert(cmp);
 }
 
 struct ComponentA
@@ -206,9 +145,9 @@ TEST(TestExecutor, ComponentGraphTest)
     static_assert(check2.info == 4);
 }
 
-constexpr GraphAdjacencyMatrix<12> cpg_base()
+constexpr AdjacencyMatrixFixed<12> cpg_base()
 {
-    GraphAdjacencyMatrix<12> g;
+    AdjacencyMatrixFixed<12> g;
 
     g.add_edge(0, 2);
     g.add_edge(1, 2);
@@ -246,16 +185,16 @@ constexpr SystemAccessTraits<12> sat_1()
     return traits;
 }
 
-constexpr GraphAdjacencyMatrix<12> cpg_shortcut_1()
+constexpr AdjacencyMatrixFixed<12> cpg_shortcut_1()
 {
-    GraphAdjacencyMatrix<12> g = cpg_base();
+    AdjacencyMatrixFixed<12> g = cpg_base();
     g.add_edge(2, 3);
     return g;
 }
 
-constexpr GraphAdjacencyMatrix<12> cpg_shortcut_2()
+constexpr AdjacencyMatrixFixed<12> cpg_shortcut_2()
 {
-    GraphAdjacencyMatrix<12> g = cpg_base();
+    AdjacencyMatrixFixed<12> g = cpg_base();
     g.add_edge(4, 7);
     return g;
 }
@@ -268,9 +207,9 @@ constexpr SystemAccessTraits<12> sat_3()
     return traits;
 }
 
-constexpr GraphAdjacencyMatrix<12> cpg_shortcut_3()
+constexpr AdjacencyMatrixFixed<12> cpg_shortcut_3()
 {
-    GraphAdjacencyMatrix<12> g = cpg_base();
+    AdjacencyMatrixFixed<12> g = cpg_base();
 
     g.add_edge(7, 9);
     g.add_edge(9, 11);

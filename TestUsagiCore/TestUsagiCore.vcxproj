@@ -12,8 +12,8 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
-    <ProjectGuid>{65bb9a32-5ba4-44d6-9cbf-d06a8fdb3e15}</ProjectGuid>
-    <RootNamespace>TestExecutor</RootNamespace>
+    <ProjectGuid>{5a4a3e6d-d824-44cd-8464-ca8fcb8f52f1}</ProjectGuid>
+    <RootNamespace>TestUsagiCore</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -25,8 +25,8 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
     <PlatformToolset>ClangCL</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -91,7 +91,20 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Library\Graph\IsCyclic.cpp" />
+    <ClCompile Include="Library\Graph\LongestPath.cpp" />
+    <ClCompile Include="Library\Graph\TransitiveReduce.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Library\Graph\TopologicalSort.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Library\Graph\TestGraphAdjListDyn.hpp" />
+    <ClInclude Include="Library\Graph\TestGraphAdjMatFixed.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Library\Usagi\Usagi.vcxproj">
+      <Project>{f9061c06-bce6-416b-9aeb-31351810b7ba}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
