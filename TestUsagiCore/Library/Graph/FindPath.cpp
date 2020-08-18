@@ -24,6 +24,7 @@ TEST(GraphAlgorithms, LongestPathDynamic)
     const auto [prev, dist] = longest_path_dag(g, 1);
     EXPECT_EQ(dist[5], 10);
 
+    /*
     auto path = path_to_stack<AdjacencyList>(prev, 1, 5);
 
     EXPECT_EQ(path.top(), 1);
@@ -35,6 +36,7 @@ TEST(GraphAlgorithms, LongestPathDynamic)
     EXPECT_EQ(path.top(), 5);
     path.pop();
     EXPECT_TRUE(path.empty());
+    */
 
     const auto path_vec = path_to_array<AdjacencyList>(prev, 1, 5);
 
@@ -63,6 +65,7 @@ TEST(GraphAlgorithms, ShortestPathDynamic)
     const auto [prev, dist] = shortest_path_dag(g, 1);
     EXPECT_EQ(dist[5], 3);
 
+    /*
     auto path = path_to_stack<AdjacencyList>(prev, 1, 5);
 
     EXPECT_EQ(path.top(), 1);
@@ -74,6 +77,7 @@ TEST(GraphAlgorithms, ShortestPathDynamic)
     EXPECT_EQ(path.top(), 5);
     path.pop();
     EXPECT_TRUE(path.empty());
+    */
 
     const auto path_vec = path_to_array<AdjacencyList>(prev, 1, 5);
 
