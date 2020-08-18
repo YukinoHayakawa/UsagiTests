@@ -38,7 +38,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Library\Graph\TestGraphAdjMatFixed.hpp">
+    <ClInclude Include="Library\Graph\TestGraphFixed.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

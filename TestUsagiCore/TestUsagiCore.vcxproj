@@ -100,7 +100,7 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Library\Graph\TestGraphAdjMatFixed.hpp" />
+    <ClInclude Include="Library\Graph\TestGraphFixed.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Library\Usagi\Usagi.vcxproj">

@@ -21,7 +21,7 @@ TEST(GraphAlgorithms, LongestPathDynamic)
     g.add_edge(3, 4, -1);
     g.add_edge(4, 5, -2);
 
-    const auto [prev, dist] = longest_path_dag(g, 1);
+    const auto [prev, dist, _] = longest_path_dag(g, 1);
     EXPECT_EQ(dist[5], 10);
 
     /*
@@ -62,7 +62,7 @@ TEST(GraphAlgorithms, ShortestPathDynamic)
     g.add_edge(3, 4, -1);
     g.add_edge(4, 5, -2);
 
-    const auto [prev, dist] = shortest_path_dag(g, 1);
+    const auto [prev, dist, _] = shortest_path_dag(g, 1);
     EXPECT_EQ(dist[5], 3);
 
     /*

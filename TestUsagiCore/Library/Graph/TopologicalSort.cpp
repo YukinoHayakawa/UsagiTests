@@ -2,7 +2,7 @@
 
 #include <Usagi/Library/Graph/TopologicalSortLexical.hpp>
 
-#include "TestGraphAdjMatFixed.hpp"
+#include "TestGraphFixed.hpp"
 
 TEST(GraphAlgorithms, TopologicalSortFixed)
 {

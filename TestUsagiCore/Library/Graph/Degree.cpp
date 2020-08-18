@@ -2,7 +2,7 @@
 
 #include <Usagi/Library/Graph/Degree.hpp>
 
-#include "TestGraphAdjMatFixed.hpp"
+#include "TestGraphFixed.hpp"
 
 TEST(GraphAlgorithms, InDegrees)
 {

@@ -2,13 +2,13 @@
 
 #include <Usagi/Library/Graph/Level.hpp>
 
-#include "TestGraphAdjMatFixed.hpp"
+#include "TestGraphFixed.hpp"
 
 using namespace usagi::graph;
 
 TEST(GraphAlgorithms, Level)
 {
-    constexpr auto level1 = level(graph2());
+    constexpr auto level1 = std::get<0>(level(graph2()));
 
     static_assert(level1[0] == 0);
     static_assert(level1[1] == 1);
@@ -17,7 +17,7 @@ TEST(GraphAlgorithms, Level)
     static_assert(level1[4] == 3);
     static_assert(level1[5] == 3);
 
-    constexpr auto level2 = level(graph3());
+    constexpr auto level2 = std::get<0>(level(graph3()));
 
     static_assert(level2[0] == 1);
     static_assert(level2[1] == 3);

@@ -2,7 +2,7 @@
 
 #include <Usagi/Library/Graph/IsCyclic.hpp>
 
-#include "TestGraphAdjMatFixed.hpp"
+#include "TestGraphFixed.hpp"
 
 constexpr bool cycle_test_false()
 {
