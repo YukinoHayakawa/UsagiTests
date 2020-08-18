@@ -24,3 +24,31 @@ constexpr AdjacencyMatrixFixed<11> test_graph()
 
     return g;
 }
+
+constexpr auto graph2()
+{
+    AdjacencyMatrixFixed<6> g;
+
+    g.add_edge(0, 1);
+    g.add_edge(1, 2);
+    g.add_edge(0, 2);
+    g.add_edge(2, 3);
+    g.add_edge(2, 4);
+    g.add_edge(2, 5);
+
+    return g;
+}
+
+constexpr auto graph3()
+{
+    AdjacencyMatrixFixed<6> g;
+
+    g.add_edge(5, 2);
+    g.add_edge(5, 0);
+    g.add_edge(4, 0);
+    g.add_edge(4, 1);
+    g.add_edge(2, 3);
+    g.add_edge(3, 1);
+
+    return g;
+}
