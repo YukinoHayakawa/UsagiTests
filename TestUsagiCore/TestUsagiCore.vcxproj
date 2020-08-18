@@ -91,14 +91,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Library\Graph\Degree.cpp" />
     <ClCompile Include="Library\Graph\IsCyclic.cpp" />
-    <ClCompile Include="Library\Graph\LongestPath.cpp" />
+    <ClCompile Include="Library\Graph\FindPath.cpp" />
     <ClCompile Include="Library\Graph\TransitiveReduce.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Library\Graph\TopologicalSort.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Library\Graph\TestGraphAdjListDyn.hpp" />
     <ClInclude Include="Library\Graph\TestGraphAdjMatFixed.hpp" />
   </ItemGroup>
   <ItemGroup>
