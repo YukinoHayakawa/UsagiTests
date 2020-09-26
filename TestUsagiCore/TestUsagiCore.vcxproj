@@ -91,6 +91,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Entity\StaticTestComponentAccess.cpp" />
+    <ClCompile Include="Entity\StaticTestComponentConcept.cpp" />
+    <ClCompile Include="Entity\StaticTestComponentFilter.cpp" />
+    <ClCompile Include="Entity\StaticTestDatabaseAccess.cpp" />
+    <ClCompile Include="Entity\StaticTestSystem.cpp" />
     <ClCompile Include="Library\Graph\Degree.cpp" />
     <ClCompile Include="Library\Graph\FindPath.cpp" />
     <ClCompile Include="Library\Graph\IsCyclic.cpp" />
