@@ -36,6 +36,15 @@
     <ClCompile Include="Library\Graph\FindPath.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Runtime\MemoryMappedFile.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Runtime\VmAllocator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Entity\EntityPage.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Entity\StaticTestComponentAccess.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -45,10 +54,10 @@
     <ClCompile Include="Entity\StaticTestComponentFilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Entity\StaticTestDatabaseAccess.cpp">
+    <ClCompile Include="Entity\StaticTestSystem.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Entity\StaticTestSystem.cpp">
+    <ClCompile Include="Entity\StaticTestDatabaseAccess.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

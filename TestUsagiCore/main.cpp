@@ -1,7 +1,9 @@
 ﻿#ifdef _DEBUG
 #pragma comment(lib, "gtestd.lib")
+#pragma comment(lib, "fmtd.lib")
 #else
 #pragma comment(lib, "gtest.lib")
+#pragma comment(lib, "fmt.lib")
 #endif
 
 #include <gtest/gtest.h>

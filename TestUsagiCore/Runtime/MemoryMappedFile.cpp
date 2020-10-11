@@ -4,9 +4,8 @@
 #include <fmt/printf.h>
 
 #include <Usagi/Runtime/File/RegularFile.hpp>
-#include <Usagi/Module/Platform/WinCommon/Win32.hpp>
 
-#include <psapi.h>
+// #include <psapi.h>
 
 using namespace usagi;
 
@@ -40,6 +39,7 @@ auto get_mem_usage()
 }
 */
 
+/*
 void print_mem_info(const MEMORY_BASIC_INFORMATION &mem)
 {
     fmt::print("BaseAddress: {}\n", mem.BaseAddress);
@@ -87,6 +87,7 @@ void seh_test_access_violation(MappedFileView &mapping, std::size_t pos)
         fmt::print("test");
     }
 }
+*/
 
 auto temp_file()
 {
@@ -112,15 +113,15 @@ TEST(MemoryMappedFile, MappedAccess)
     auto mapping = file->create_view(0, PAGE_SIZE * 2, 0);
     // test that creating file mapping extends the file length
     EXPECT_EQ(file->size(), PAGE_SIZE * 2);
-    print_mem_info(virtual_query(mapping.base_view()));
+    // print_mem_info(virtual_query(mapping.base_view()));
 
-    seh_test_no_access_violation(mapping, 0);
-    seh_test_no_access_violation(mapping, PAGE_SIZE);
+    // seh_test_no_access_violation(mapping, 0);
+    // seh_test_no_access_violation(mapping, PAGE_SIZE);
     // seh_test_access_violation(mapping, PAGE_SIZE * 2);
-    print_mem_info(virtual_query(mapping.base_view()));
+    // print_mem_info(virtual_query(mapping.base_view()));
 
     mapping.offer(0, PAGE_SIZE);
-    print_mem_info(virtual_query(mapping.base_view()));
+    // print_mem_info(virtual_query(mapping.base_view()));
 
     // expect 0xc0000021 STATUS_ALREADY_COMMITTED
     // EXPECT_THROW(mapping.commit(0, PAGE_SIZE), NtException);

@@ -1,15 +1,4 @@
-﻿#ifdef _DEBUG
-#pragma comment(lib, "gtestd.lib")
-#else
-#pragma comment(lib, "gtest.lib")
-#endif
-
-#include <gtest/gtest.h>
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
+﻿#include <gtest/gtest.h>
 
 #include <Usagi/Entity/EntityDatabase.hpp>
 #include <Usagi/Entity/Archetype.hpp>
@@ -31,24 +20,24 @@ TEST(EntityDatabaseTest, ArchetypePageReuse)
     Database1 db;
     Archetype1 a;
 
-    const auto i = db.create(a);
+    const EntityId i = db.create(a);
     // allocated new page
-    EXPECT_EQ(i.id, 0);
+    EXPECT_EQ(i.page, 0);
 
     db.entity_view(i).destroy();
-    const auto i2 = db.create(a);
+    const EntityId i2 = db.create(a);
     // page reused
-    EXPECT_EQ(i2.id, 1);
-    EXPECT_EQ(i2.page_idx, i.page_idx);
+    EXPECT_EQ(i2.offset, 1);
+    EXPECT_EQ(i2.page, i.page);
 
     db.entity_view(i2).destroy();
     // page got deallocated
     db.reclaim_pages();
 
-    const auto i3 = db.create(a);
+    const EntityId i3 = db.create(a);
     // page reused on the same memory
-    EXPECT_EQ(i3.id, Database1::ENTITY_PAGE_SIZE);
-    EXPECT_EQ(i2.page_idx, i.page_idx);
+    EXPECT_EQ(i3.offset, 0);
+    EXPECT_EQ(i3.page, i.page);
 }
 
 struct SystemA
@@ -92,8 +81,8 @@ public:
             id3 = db.create(a);
         }
         // each entity on a different page
-        ASSERT_NE(id1.page_idx, id2.page_idx);
-        ASSERT_NE(id3.page_idx, id2.page_idx);
+        ASSERT_NE(id1.page, id2.page);
+        ASSERT_NE(id3.page, id2.page);
     }
 };
 

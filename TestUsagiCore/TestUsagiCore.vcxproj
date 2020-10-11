@@ -20,7 +20,6 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>ClangCL</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -91,6 +90,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Entity\EntityPage.cpp" />
     <ClCompile Include="Entity\StaticTestComponentAccess.cpp" />
     <ClCompile Include="Entity\StaticTestComponentConcept.cpp" />
     <ClCompile Include="Entity\StaticTestComponentFilter.cpp" />
@@ -103,6 +103,8 @@
     <ClCompile Include="Library\Graph\TopologicalSort.cpp" />
     <ClCompile Include="Library\Graph\TransitiveReduce.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Runtime\MemoryMappedFile.cpp" />
+    <ClCompile Include="Runtime\VmAllocator.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Library\Graph\TestGraphFixed.hpp" />
@@ -110,6 +112,9 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Library\Usagi\Usagi.vcxproj">
       <Project>{f9061c06-bce6-416b-9aeb-31351810b7ba}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Module\Usagi\Module\Platform\Win10\Win10.vcxproj">
+      <Project>{ba6b6731-dfa8-4da0-b121-d3d8d584b001}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
