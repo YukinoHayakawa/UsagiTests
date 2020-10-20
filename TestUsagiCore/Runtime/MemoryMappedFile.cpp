@@ -89,6 +89,12 @@ void seh_test_access_violation(MappedFileView &mapping, std::size_t pos)
 }
 */
 
+
+void try_access(MappedFileView &mapping, std::size_t pos)
+{
+    mapping.base_view_byte()[pos] = '1';
+}
+
 auto temp_file()
 {
     using namespace platform::file;
@@ -115,8 +121,8 @@ TEST(MemoryMappedFile, MappedAccess)
     EXPECT_EQ(file->size(), PAGE_SIZE * 2);
     // print_mem_info(virtual_query(mapping.base_view()));
 
-    // seh_test_no_access_violation(mapping, 0);
-    // seh_test_no_access_violation(mapping, PAGE_SIZE);
+    ASSERT_NO_FATAL_FAILURE(try_access(mapping, 0));
+    ASSERT_NO_FATAL_FAILURE(try_access(mapping, PAGE_SIZE));
     // seh_test_access_violation(mapping, PAGE_SIZE * 2);
     // print_mem_info(virtual_query(mapping.base_view()));
 
@@ -181,5 +187,5 @@ TEST(MemoryMappedFile, ExtendLength)
     EXPECT_EQ(file->size(), PAGE_SIZE * 3);
     EXPECT_EQ(mapping.max_size(), PAGE_SIZE * 2);
 
-    // seh_test_no_access_violation(mapping, PAGE_SIZE);
+    ASSERT_NO_FATAL_FAILURE(try_access(mapping, PAGE_SIZE));
 }

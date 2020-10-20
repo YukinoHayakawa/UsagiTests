@@ -15,16 +15,15 @@ TEST(VmAllocator, FileBackedAllocation)
 
     VmAllocatorFileBacked alloc;
 
-    // file path not set
+    // allocation cannot be done without a backing file
     EXPECT_EQ(alloc.max_size(), 0);
     ASSERT_THROW(alloc.allocate(PAGE_SIZE), std::bad_alloc);
 
     alloc.set_backing_file(file);
 
-    ASSERT_THROW(alloc.reallocate(nullptr, PAGE_SIZE), std::bad_alloc);
-
-    // first allocation
-    auto ptr = alloc.allocate(PAGE_SIZE);
+    // reallocated fallback to allocate if nullptr is passed in
+    void *ptr;
+    ASSERT_NO_THROW(ptr = alloc.reallocate(nullptr, PAGE_SIZE));
     ASSERT_NE(ptr, nullptr);
     EXPECT_EQ(std::filesystem::file_size(file), PAGE_SIZE);
 
@@ -38,9 +37,11 @@ TEST(VmAllocator, FileBackedAllocation)
     // deallocation
     alloc.deallocate(ptr2);
 
-    ASSERT_THROW(alloc.reallocate(nullptr, PAGE_SIZE), std::bad_alloc);
+    // no double deallocation
     ASSERT_THROW(alloc.deallocate(ptr2), std::bad_alloc);
 
-    auto ptr3 = alloc.allocate(PAGE_SIZE * 3);
-    alloc.deallocate(ptr3);
+    // reallocation after deallocation
+    ASSERT_NO_THROW(ptr2 = alloc.allocate(PAGE_SIZE * 3));
+    ASSERT_NO_THROW(alloc.deallocate(ptr2));
+
 }
