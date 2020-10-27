@@ -13,7 +13,7 @@ struct ComponentA
 };
 
 using Archetype1 = Archetype<ComponentA>;
-using Database1 = EntityDatabase<Archetype1::ComponentFilterT>;
+using Database1 = Archetype1::ComponentFilterT::rebind<EntityDatabaseInMemory>;
 
 TEST(EntityDatabaseTest, ArchetypePageReuse)
 {

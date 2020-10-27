@@ -92,7 +92,7 @@ void seh_test_access_violation(MappedFileView &mapping, std::size_t pos)
 
 void try_access(MappedFileView &mapping, std::size_t pos)
 {
-    mapping.base_view_byte()[pos] = '1';
+    mapping.base_byte_view()[pos] = '1';
 }
 
 auto temp_file()
@@ -103,7 +103,7 @@ auto temp_file()
         (char8_t*)tmpnam(nullptr),
         FileOpenMode(OPEN_READ | OPEN_WRITE),
         FileOpenOptions(OPTION_ALWAYS_CREATE_NEW)
-        );
+    );
     fmt::print("Temp file path: {}\n", (const char*)file->path().c_str());
 
     return std::move(file);
@@ -147,8 +147,8 @@ TEST(MemoryMappedFile, LoadState)
         auto mapping = file->create_view(0, PAGE_SIZE * 2, 0);
         EXPECT_EQ(file->size(), PAGE_SIZE * 2);
         // write content at the beginning of each page
-        mapping.base_view_byte()[0] = '1';
-        mapping.base_view_byte()[PAGE_SIZE] = '2';
+        mapping.base_byte_view()[0] = '1';
+        mapping.base_byte_view()[PAGE_SIZE] = '2';
         // mapping closed by dtor
     }
     // close the file, too
@@ -167,7 +167,45 @@ TEST(MemoryMappedFile, LoadState)
         EXPECT_EQ(file->size(), PAGE_SIZE * 2);
         EXPECT_EQ(mapping.max_size(), PAGE_SIZE);
         // check content == the second page
-        EXPECT_EQ(mapping.base_view_byte()[0], '2');
+        EXPECT_EQ(mapping.base_byte_view()[0], '2');
+    }
+}
+
+TEST(MemoryMappedFile, UseFileLength)
+{
+    using namespace platform::file;
+
+    auto file = temp_file();
+    auto path = file->path();
+    {
+        EXPECT_EQ(file->size(), 0);
+        auto mapping = file->create_view(0, 1024, 0);
+        EXPECT_EQ(file->size(), 1024);
+        mapping.base_byte_view()[0] = '1';
+        mapping.base_byte_view()[512] = '2';
+        // mapping closed by dtor
+    }
+    // close the file, too
+    file.reset();
+    // reopen the file
+    file = std::make_unique<RegularFile>(
+        path,
+        // bug: cannot create read-only mappings
+        FileOpenMode(OPEN_READ | OPEN_WRITE),
+        FileOpenOptions()
+    );
+    {
+        // creates a view using current file size
+        auto mapping = file->create_view(
+            512,
+            MappedFileView::USE_FILE_SIZE,
+            0
+        );
+        EXPECT_EQ(file->size(), 1024);
+        EXPECT_EQ(mapping.max_size(), 512);
+        const auto string_view = mapping.base_string_view();
+        EXPECT_EQ(string_view[0], '2');
+        EXPECT_EQ(string_view.size(), 512);
     }
 }
 

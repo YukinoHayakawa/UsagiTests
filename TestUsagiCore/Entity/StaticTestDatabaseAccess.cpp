@@ -18,7 +18,8 @@ struct ComponentB
 {
 };
 
-using Database = EntityDatabase<ComponentFilter<ComponentA, ComponentB>>;
+using Database = ComponentFilter<ComponentA, ComponentB>::
+    rebind<EntityDatabaseInMemory>;
 
 using ArchetypeA = Archetype<ComponentA>;
 using ArchetypeB = Archetype<ComponentB>;
