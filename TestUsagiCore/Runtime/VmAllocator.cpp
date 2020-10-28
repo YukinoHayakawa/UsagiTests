@@ -2,8 +2,8 @@
 
 #include <gtest/gtest.h>
 
-#include <Usagi/Concept/Type/Memcpyable.hpp>
 #include <Usagi/Runtime/Memory/VmAllocatorFileBacked.hpp>
+#include <Usagi/Runtime/Memory/VmAllocatorPagefileBacked.hpp>
 
 using namespace usagi;
 
@@ -44,4 +44,33 @@ TEST(VmAllocator, FileBackedAllocation)
     ASSERT_NO_THROW(ptr2 = alloc.allocate(PAGE_SIZE * 3));
     ASSERT_NO_THROW(alloc.deallocate(ptr2));
 
+}
+
+TEST(VmAllocator, PagefileBackedAllocation)
+{
+    VmAllocatorPagefileBacked alloc;
+
+    alloc.reserve(PAGE_SIZE * 8);
+    EXPECT_EQ(alloc.max_size(), PAGE_SIZE * 8);
+
+    auto ptr = alloc.allocate(PAGE_SIZE * 1);
+    // no double allocation
+    ASSERT_THROW(alloc.allocate(PAGE_SIZE), std::bad_alloc);
+
+    auto ptr2 = (unsigned char *)alloc.reallocate(ptr, PAGE_SIZE * 4);
+    ASSERT_EQ(ptr, ptr2);
+
+    // fill with 1s
+    memset(ptr2, 1, PAGE_SIZE * 4);
+    alloc.zero_memory(ptr2, 2048, PAGE_SIZE * 3);
+
+    ASSERT_EQ(ptr2[2047], 1);
+    ASSERT_EQ(ptr2[2048], 0);
+    ASSERT_EQ(ptr2[PAGE_SIZE], 0); // begin of 2nd page
+    ASSERT_EQ(ptr2[PAGE_SIZE * 2], 0); // begin of 3rd page
+    ASSERT_EQ(ptr2[PAGE_SIZE * 3], 0); // begin of 4th page
+    ASSERT_EQ(ptr2[PAGE_SIZE * 3 + 2047], 0);
+    ASSERT_EQ(ptr2[PAGE_SIZE * 3 + 2048], 1);
+
+    ASSERT_NO_THROW(alloc.deallocate(ptr2));
 }
