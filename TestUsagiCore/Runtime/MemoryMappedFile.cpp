@@ -156,7 +156,7 @@ TEST(MemoryMappedFile, LoadState)
     // reopen the file
     file = std::make_unique<RegularFile>(
         path,
-        // bug: cannot create read-only mappings
+        // bug: cannot create read-only mappings on Windows
         FileOpenMode(OPEN_READ | OPEN_WRITE),
         FileOpenOptions()
     );
@@ -190,7 +190,7 @@ TEST(MemoryMappedFile, UseFileLength)
     // reopen the file
     file = std::make_unique<RegularFile>(
         path,
-        // bug: cannot create read-only mappings
+        // bug: cannot create read-only mappings on Windows
         FileOpenMode(OPEN_READ | OPEN_WRITE),
         FileOpenOptions()
     );
