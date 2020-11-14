@@ -7,6 +7,8 @@
 
 using namespace usagi;
 
+namespace
+{
 struct ComponentA
 {
     int i;
@@ -14,6 +16,18 @@ struct ComponentA
 
 using Archetype1 = Archetype<ComponentA>;
 using Database1 = Archetype1::ComponentFilterT::apply<EntityDatabaseInMemory>;
+
+struct SystemA
+{
+    using WriteAccess = ComponentFilter<ComponentA>;
+    using ReadAccess = ComponentFilter<>;
+
+    template <typename RuntimeServices, typename EntityDatabaseAccess>
+    void update(RuntimeServices &&rt, EntityDatabaseAccess &&db)
+    {
+    }
+};
+}
 
 TEST(EntityDatabaseTest, ArchetypePageReuse)
 {
@@ -39,17 +53,6 @@ TEST(EntityDatabaseTest, ArchetypePageReuse)
     EXPECT_EQ(i3.offset, 0);
     EXPECT_EQ(i3.page, i.page);
 }
-
-struct SystemA
-{
-    using WriteAccess = ComponentFilter<ComponentA>;
-    using ReadAccess = ComponentFilter<>;
-
-    template <typename RuntimeServices, typename EntityDatabaseAccess>
-    void update(RuntimeServices &&rt, EntityDatabaseAccess &&db)
-    {
-    }
-};
 
 class EntityDatabasePageTest : public ::testing::Test
 {
