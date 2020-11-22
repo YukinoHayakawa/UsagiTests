@@ -6,7 +6,7 @@ using namespace usagi;
 
 namespace
 {
-USAGI_DECL_FLAG_COMPONENT(ComponentA);
+USAGI_DECL_TAG_COMPONENT(ComponentA);
 
 struct ComponentB
 {
@@ -41,7 +41,7 @@ TEST(EntityDatabaseStotrgeTest, FlagComponent)
     // auto access = db.create_access<ComponentAccessSystemAttribute<SystemA>>();
     // auto view = access.view(WriteFilter());
     Archetype1 archetype;
-    auto id = db.create(archetype);
+    auto id = db.insert(archetype);
     auto e = db.entity_view(id);
 
     EXPECT_FALSE(e.has_component<ComponentA>());

@@ -4,14 +4,14 @@ using namespace usagi;
 
 struct A
 {
-    using FlagComponent = void;
+    using TagComponent = void;
 };
-static_assert(IsFlagComponent<A>);
+static_assert(TagComponent<A>);
 
 struct B
 {
 };
-static_assert(!IsFlagComponent<B>);
+static_assert(!TagComponent<B>);
 
-USAGI_DECL_FLAG_COMPONENT(C);
-static_assert(IsFlagComponent<C>);
+USAGI_DECL_TAG_COMPONENT(C);
+static_assert(TagComponent<C>);

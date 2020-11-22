@@ -21,6 +21,12 @@ struct ComponentC
 struct ComponentD
 {
 };
+
+template <typename... Components>
+auto make_filter(Components &&... components)
+{
+    return ComponentFilter { std::forward<Components>(components)... };
+}
 }
 
 static_assert(std::is_same_v<
@@ -42,5 +48,25 @@ static_assert(std::is_same_v<
         ComponentFilter<ComponentD, ComponentA, ComponentC>
     >>,
     ComponentFilter<ComponentA, ComponentB, ComponentD, ComponentC>
+>);
+
+static_assert(std::is_same_v<
+    decltype(make_filter(ComponentA())),
+    ComponentFilter<ComponentA>
+>);
+
+static_assert(std::is_same_v<
+    decltype(ComponentFilter { ComponentA() }),
+    ComponentFilter<ComponentA>
+>);
+
+static_assert(std::is_same_v<
+    decltype(make_filter()),
+    ComponentFilter<>
+>);
+
+static_assert(std::is_same_v<
+    decltype(ComponentFilter { }),
+    ComponentFilter<>
 >);
 }

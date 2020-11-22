@@ -50,13 +50,13 @@ using Access = EntityDatabaseAccessExternal<
 template <typename T>
 concept CanCreateA = requires (T)
 {
-    Access<T>(nullptr).create(std::declval<ArchetypeA&>());
+    Access<T>(nullptr).insert(std::declval<ArchetypeA&>());
 };
 
 template <typename T>
 concept CanCreateB = requires (T)
 {
-    Access<T>(nullptr).create(std::declval<ArchetypeB&>());
+    Access<T>(nullptr).insert(std::declval<ArchetypeB&>());
 };
 
 static_assert(CanCreateA<SystemA>);
@@ -67,7 +67,7 @@ static_assert(!CanCreateB<SystemA>);
 template <typename T>
 concept CanDestroyEntity = requires (T)
 {
-    (*Access<T>(nullptr).unfiltered_view().begin()).destroy();
+    (*Access<T>(nullptr).view().begin()).destroy();
 };
 
 static_assert(!CanDestroyEntity<SystemA>);

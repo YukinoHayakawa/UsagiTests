@@ -34,12 +34,12 @@ TEST(EntityDatabaseTest, ArchetypePageReuse)
     Database1 db;
     Archetype1 a;
 
-    const EntityId i = db.create(a);
+    const EntityId i = db.insert(a);
     // allocated new page
     EXPECT_EQ(i.page, 0);
 
     db.entity_view(i).destroy();
-    const EntityId i2 = db.create(a);
+    const EntityId i2 = db.insert(a);
     // page reused
     EXPECT_EQ(i2.offset, 1);
     EXPECT_EQ(i2.page, i.page);
@@ -48,7 +48,7 @@ TEST(EntityDatabaseTest, ArchetypePageReuse)
     // page got deallocated
     db.reclaim_pages();
 
-    const EntityId i3 = db.create(a);
+    const EntityId i3 = db.insert(a);
     // page reused on the same memory
     EXPECT_EQ(i3.offset, 0);
     EXPECT_EQ(i3.page, i.page);
@@ -71,17 +71,17 @@ public:
         {
             Archetype1 a;
             a.val<ComponentA>().i = 1;
-            id1 = db.create(a);
+            id1 = db.insert(a);
         }
         {
             Archetype1 a;
             a.val<ComponentA>().i = 2;
-            id2 = db.create(a);
+            id2 = db.insert(a);
         }
         {
             Archetype1 a;
             a.val<ComponentA>().i = 3;
-            id3 = db.create(a);
+            id3 = db.insert(a);
         }
         // each entity on a different page
         ASSERT_NE(id1.page, id2.page);
@@ -172,7 +172,7 @@ TEST_F(EntityDatabasePageTest, VoidFilteredIterator)
 
     // filtered range with an empty include filter visits created entities
     // including those not having components
-    auto void_view = access.view(ComponentFilter<>());
+    auto void_view = access.view();
     EXPECT_EQ(
         std::distance(void_view.begin(), void_view.end()),
         3

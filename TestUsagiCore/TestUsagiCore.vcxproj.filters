@@ -72,6 +72,9 @@
     <ClCompile Include="Entity\Storage.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Entity\EntityDatabase.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Library\Graph\TestGraphFixed.hpp">
