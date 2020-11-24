@@ -42,7 +42,7 @@ TEST(EntityDatabaseStotrgeTest, FlagComponent)
     // auto view = access.view(WriteFilter());
     Archetype1 archetype;
     auto id = db.insert(archetype);
-    auto e = db.entity_view(id);
+    auto e = db.entity_view<ComponentAccessAllowAll>(id);
 
     EXPECT_FALSE(e.has_component<ComponentA>());
     EXPECT_FALSE(e.has_component<ComponentB>());

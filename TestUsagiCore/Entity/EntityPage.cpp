@@ -38,13 +38,13 @@ TEST(EntityDatabaseTest, ArchetypePageReuse)
     // allocated new page
     EXPECT_EQ(i.page, 0);
 
-    db.entity_view(i).destroy();
+    db.entity_view<ComponentAccessAllowAll>(i).destroy();
     const EntityId i2 = db.insert(a);
     // page reused
     EXPECT_EQ(i2.offset, 1);
     EXPECT_EQ(i2.page, i.page);
 
-    db.entity_view(i2).destroy();
+    db.entity_view<ComponentAccessAllowAll>(i2).destroy();
     // page got deallocated
     db.reclaim_pages();
 
@@ -108,7 +108,7 @@ TEST_F(EntityDatabasePageTest, IterationOrder)
 
 TEST_F(EntityDatabasePageTest, DeleteFirstPage)
 {
-    db.entity_view(id1).destroy();
+    db.entity_view<ComponentAccessAllowAll>(id1).destroy();
     db.reclaim_pages();
 
     auto view = access.view(Archetype1::ComponentFilterT());
@@ -125,7 +125,7 @@ TEST_F(EntityDatabasePageTest, DeleteFirstPage)
 
 TEST_F(EntityDatabasePageTest, DeleteMiddlePage)
 {
-    db.entity_view(id2).destroy();
+    db.entity_view<ComponentAccessAllowAll>(id2).destroy();
     db.reclaim_pages();
 
     auto view = access.view(Archetype1::ComponentFilterT());
@@ -142,7 +142,7 @@ TEST_F(EntityDatabasePageTest, DeleteMiddlePage)
 
 TEST_F(EntityDatabasePageTest, DeleteLastPage)
 {
-    db.entity_view(id3).destroy();
+    db.entity_view<ComponentAccessAllowAll>(id3).destroy();
     db.reclaim_pages();
 
     auto view = access.view(Archetype1::ComponentFilterT());
@@ -159,7 +159,7 @@ TEST_F(EntityDatabasePageTest, DeleteLastPage)
 
 TEST_F(EntityDatabasePageTest, VoidFilteredIterator)
 {
-    db.entity_view(id2).destroy();
+    db.entity_view<ComponentAccessAllowAll>(id2).destroy();
 
     auto unfiltered_view = access.unfiltered_view();
 
