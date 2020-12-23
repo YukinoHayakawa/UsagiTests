@@ -110,3 +110,35 @@ TEST(EntityDatabaseTest, FilteredView)
         EXPECT_EQ(c, 40);
     }
 }
+
+TEST(EntityDatabaseTest, Sampling)
+{
+    Database db;
+    std::mt19937 rng(std::random_device{}());
+
+    // No sample obtained when the database is empty
+    for(int i = 0; i < 100; ++i)
+    {
+        auto sample = db.sample<ComponentAccessAllowAll>(rng, 10);
+        EXPECT_FALSE(sample.has_value());
+    }
+
+    Archetype<ComponentTag> archetype;
+    for(int i = 0; i < 10; ++i)
+    {
+        db.insert(archetype);
+    }
+
+    archetype = {};
+    for(int i = 0; i < 10; ++i)
+    {
+        db.insert(archetype);
+    }
+
+    for(int i = 0; i < 100; ++i)
+    {
+        auto sample = db.sample<ComponentAccessAllowAll>(rng, -1);
+        EXPECT_TRUE(sample.has_value());
+        EXPECT_TRUE(sample->has_component<ComponentTag>());
+    }
+}

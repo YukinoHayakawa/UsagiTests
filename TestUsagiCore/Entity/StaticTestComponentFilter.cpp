@@ -69,4 +69,6 @@ static_assert(std::is_same_v<
     decltype(ComponentFilter { }),
     ComponentFilter<>
 >);
+
+static_assert(!Component<ComponentFilter<>>);
 }

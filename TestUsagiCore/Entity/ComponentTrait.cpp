@@ -1,4 +1,4 @@
-﻿#include <Usagi/Entity/detail/ComponentTrait.hpp>
+﻿#include <Usagi/Entity/Component.hpp>
 
 using namespace usagi;
 
