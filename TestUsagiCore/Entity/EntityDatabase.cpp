@@ -41,14 +41,14 @@ TEST(EntityDatabaseTest, FilteredView)
     {
         auto range = access.view();
         const auto c = std::count_if(range.begin(), range.end(), [](auto &&e) {
-            return e.has_component(ComponentTag());
+            return e.include(ComponentTag());
         });
         EXPECT_EQ(c, 32);
     }
     {
         auto range = access.unfiltered_view();
         const auto c = std::count_if(range.begin(), range.end(), [](auto &&e) {
-            return e.has_component(ComponentTag());
+            return e.include(ComponentTag());
         });
         EXPECT_EQ(c, 32);
     }
@@ -70,7 +70,7 @@ TEST(EntityDatabaseTest, FilteredView)
     {
         auto range = access.unfiltered_view();
         const auto c = std::count_if(range.begin(), range.end(), [](auto &&e) {
-            return e.has_component(ComponentTag());
+            return e.include(ComponentTag());
             });
         EXPECT_EQ(c, 0);
     }
@@ -93,14 +93,14 @@ TEST(EntityDatabaseTest, FilteredView)
     {
         auto range = access.view();
         const auto c = std::count_if(range.begin(), range.end(), [](auto &&e) {
-            return e.has_component(ComponentTag());
+            return e.include(ComponentTag());
         });
         EXPECT_EQ(c, 40);
     }
     {
         auto range = access.unfiltered_view();
         const auto c = std::count_if(range.begin(), range.end(), [](auto &&e) {
-            return e.has_component(ComponentTag());
+            return e.include(ComponentTag());
         });
         EXPECT_EQ(c, 40);
     }
@@ -119,7 +119,7 @@ TEST(EntityDatabaseTest, Sampling)
     // No sample obtained when the database is empty
     for(int i = 0; i < 100; ++i)
     {
-        auto sample = db.sample<ComponentAccessAllowAll>(rng, 10);
+        auto sample = db.sample<ComponentAccessAllowAll>(rng);
         EXPECT_FALSE(sample.has_value());
     }
 
@@ -135,10 +135,47 @@ TEST(EntityDatabaseTest, Sampling)
         db.insert(archetype);
     }
 
-    for(int i = 0; i < 100; ++i)
+    auto all_trials = db.create_sampling_counter();
+    const int rounds = 128;
+    for(int i = 0; i < rounds; ++i)
     {
-        auto sample = db.sample<ComponentAccessAllowAll>(rng, -1);
-        EXPECT_TRUE(sample.has_value());
-        EXPECT_TRUE(sample->has_component<ComponentTag>());
+        auto trails = db.create_sampling_counter();
+        auto sample = db.sample<ComponentAccessAllowAll>(rng, {}, {}, -1);
+        ASSERT_TRUE(sample.has_value());
+        EXPECT_TRUE(sample->include<ComponentTag>());
+        sample = db.sample<ComponentAccessAllowAll>(
+            rng, C<ComponentTag>(), {}, -1, &trails
+        );
+        ASSERT_TRUE(sample.has_value());
+        all_trials += trails;
+        EXPECT_TRUE(sample->include<ComponentTag>());
+        sample = db.sample<ComponentAccessAllowAll>(
+            rng, {}, C<ComponentTag>()
+        );
+        EXPECT_FALSE(sample.has_value());
     }
+
+    // note that the succeed trait is not included in these counts!
+    std::cout << "avg num failed trials:"
+        << "\n    !valid      : " << all_trials.num_invalid / rounds
+        << "\n    !include    : " << all_trials.num_include_unsatisfied / rounds
+        << "\n    !exclude    : " << all_trials.num_exclude_unsatisfied / rounds
+        << "\n" << std::endl;
+
+    // https://www.geeksforgeeks.org/expected-number-of-trials-before-success/
+    // https://www.cut-the-knot.org/Probability/LengthToFirstSuccess.shtml
+    auto access = db.create_access<ComponentAccessAllowAll>();
+    auto range = access.view(C<ComponentTag>());
+    auto range2 = access.unfiltered_view();
+    const auto population_size = std::distance(range.begin(), range.end());
+    const auto pool_size = std::distance(range2.begin(), range2.end());
+    const auto hit_expectation = (double)population_size / pool_size;
+    const auto attempt_expectation = 1 / hit_expectation;
+
+    std::cout << "expectations:"
+        << "\n    population  : " << population_size
+        << "\n    pool        : " << pool_size
+        << "\n    hit         : " << hit_expectation
+        << "\n    num attempts: " << attempt_expectation
+        << "\n" << std::endl;
 }

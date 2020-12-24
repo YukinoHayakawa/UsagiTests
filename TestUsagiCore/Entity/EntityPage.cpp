@@ -94,13 +94,13 @@ TEST_F(EntityDatabasePageTest, IterationOrder)
     auto view = access.view(Archetype1::ComponentFilterT());
     auto iter = view.begin();
 
-    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    ASSERT_TRUE((*iter).include<ComponentA>());
     EXPECT_EQ((*iter).component<ComponentA>().i, 1);
     ++iter;
-    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    ASSERT_TRUE((*iter).include<ComponentA>());
     EXPECT_EQ((*iter).component<ComponentA>().i, 2);
     ++iter;
-    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    ASSERT_TRUE((*iter).include<ComponentA>());
     EXPECT_EQ((*iter).component<ComponentA>().i, 3);
     ++iter;
     EXPECT_EQ(iter, view.end());
@@ -114,10 +114,10 @@ TEST_F(EntityDatabasePageTest, DeleteFirstPage)
     auto view = access.view(Archetype1::ComponentFilterT());
     auto iter = view.begin();
 
-    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    ASSERT_TRUE((*iter).include<ComponentA>());
     EXPECT_EQ((*iter).component<ComponentA>().i, 2);
     ++iter;
-    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    ASSERT_TRUE((*iter).include<ComponentA>());
     EXPECT_EQ((*iter).component<ComponentA>().i, 3);
     ++iter;
     EXPECT_EQ(iter, view.end());
@@ -131,10 +131,10 @@ TEST_F(EntityDatabasePageTest, DeleteMiddlePage)
     auto view = access.view(Archetype1::ComponentFilterT());
     auto iter = view.begin();
 
-    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    ASSERT_TRUE((*iter).include<ComponentA>());
     EXPECT_EQ((*iter).component<ComponentA>().i, 1);
     ++iter;
-    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    ASSERT_TRUE((*iter).include<ComponentA>());
     EXPECT_EQ((*iter).component<ComponentA>().i, 3);
     ++iter;
     EXPECT_EQ(iter, view.end());
@@ -148,10 +148,10 @@ TEST_F(EntityDatabasePageTest, DeleteLastPage)
     auto view = access.view(Archetype1::ComponentFilterT());
     auto iter = view.begin();
 
-    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    ASSERT_TRUE((*iter).include<ComponentA>());
     EXPECT_EQ((*iter).component<ComponentA>().i, 1);
     ++iter;
-    ASSERT_TRUE((*iter).has_component<ComponentA>());
+    ASSERT_TRUE((*iter).include<ComponentA>());
     EXPECT_EQ((*iter).component<ComponentA>().i, 2);
     ++iter;
     EXPECT_EQ(iter, view.end());

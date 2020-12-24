@@ -44,18 +44,18 @@ TEST(EntityDatabaseStotrgeTest, FlagComponent)
     auto id = db.insert(archetype);
     auto e = db.entity_view<ComponentAccessAllowAll>(id);
 
-    EXPECT_FALSE(e.has_component<ComponentA>());
-    EXPECT_FALSE(e.has_component<ComponentB>());
+    EXPECT_FALSE(e.include<ComponentA>());
+    EXPECT_FALSE(e.include<ComponentB>());
 
     e.add_component<ComponentA>();
-    EXPECT_TRUE(e.has_component<ComponentA>());
+    EXPECT_TRUE(e.include<ComponentA>());
 
     e.add_component<ComponentB>();
-    EXPECT_TRUE(e.has_component<ComponentB>());
+    EXPECT_TRUE(e.include<ComponentB>());
 
     e.remove_component<ComponentA>();
-    EXPECT_FALSE(e.has_component<ComponentA>());
+    EXPECT_FALSE(e.include<ComponentA>());
 
     e.remove_component<ComponentB>();
-    EXPECT_FALSE(e.has_component<ComponentB>());
+    EXPECT_FALSE(e.include<ComponentB>());
 }
