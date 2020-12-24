@@ -115,11 +115,12 @@ TEST(EntityDatabaseTest, Sampling)
 {
     Database db;
     std::mt19937 rng(std::random_device{}());
+    auto access = db.create_access<ComponentAccessAllowAll>();
 
     // No sample obtained when the database is empty
     for(int i = 0; i < 100; ++i)
     {
-        auto sample = db.sample<ComponentAccessAllowAll>(rng);
+        auto sample = access.sample_random_access_single(rng);
         EXPECT_FALSE(sample.has_value());
     }
 
@@ -135,21 +136,21 @@ TEST(EntityDatabaseTest, Sampling)
         db.insert(archetype);
     }
 
-    auto all_trials = db.create_sampling_counter();
+    auto all_trials = access.create_sampling_counter();
     const int rounds = 128;
     for(int i = 0; i < rounds; ++i)
     {
-        auto trails = db.create_sampling_counter();
-        auto sample = db.sample<ComponentAccessAllowAll>(rng, {}, {}, -1);
+        auto trails = access.create_sampling_counter();
+        auto sample = access.sample_random_access_single(rng, {}, {}, -1);
         ASSERT_TRUE(sample.has_value());
         EXPECT_TRUE(sample->include<ComponentTag>());
-        sample = db.sample<ComponentAccessAllowAll>(
+        sample = access.sample_random_access_single(
             rng, C<ComponentTag>(), {}, -1, &trails
         );
         ASSERT_TRUE(sample.has_value());
         all_trials += trails;
         EXPECT_TRUE(sample->include<ComponentTag>());
-        sample = db.sample<ComponentAccessAllowAll>(
+        sample = access.sample_random_access_single(
             rng, {}, C<ComponentTag>()
         );
         EXPECT_FALSE(sample.has_value());
@@ -164,7 +165,6 @@ TEST(EntityDatabaseTest, Sampling)
 
     // https://www.geeksforgeeks.org/expected-number-of-trials-before-success/
     // https://www.cut-the-knot.org/Probability/LengthToFirstSuccess.shtml
-    auto access = db.create_access<ComponentAccessAllowAll>();
     auto range = access.view(C<ComponentTag>());
     auto range2 = access.unfiltered_view();
     const auto population_size = std::distance(range.begin(), range.end());
