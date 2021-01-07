@@ -70,17 +70,17 @@ public:
     {
         {
             Archetype1 a;
-            a.val<ComponentA>().i = 1;
+            a.component<ComponentA>().i = 1;
             id1 = db.insert(a);
         }
         {
             Archetype1 a;
-            a.val<ComponentA>().i = 2;
+            a.component<ComponentA>().i = 2;
             id2 = db.insert(a);
         }
         {
             Archetype1 a;
-            a.val<ComponentA>().i = 3;
+            a.component<ComponentA>().i = 3;
             id3 = db.insert(a);
         }
         // each entity on a different page
