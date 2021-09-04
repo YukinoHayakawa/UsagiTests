@@ -13,8 +13,8 @@ int main(int argc, char **argv) {
     return RUN_ALL_TESTS();
 }
 
-#include <Usagi/Module/Service/Asset/AssetManager.hpp>
-#include <Usagi/Module/Service/Asset/AssetSourceFilesystem.hpp>
+#include <Usagi/Modules/Services/Asset/AssetManager.hpp>
+#include <Usagi/Modules/Services/Asset/AssetSourceFilesystem.hpp>
 
 using namespace usagi;
 

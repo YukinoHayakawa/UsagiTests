@@ -222,7 +222,7 @@ static_assert(!SystemExplicitComponentAccess<
 
 struct SystemAccessTraitTest4
 {
-    using ReadAllAccess = void;
+    using ReadAccess = AllComponents;
 };
 
 static_assert(SystemCanReadComponent<
@@ -279,7 +279,7 @@ static_assert(!SystemExplicitComponentAccess<
 
 struct SystemAccessTraitTest5
 {
-    using WriteAllAccess = void;
+    using WriteAccess = AllComponents;
 };
 
 static_assert(SystemCanReadComponent<
