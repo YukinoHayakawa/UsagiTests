@@ -118,7 +118,7 @@
     <ProjectReference Include="..\..\Library\Usagi\Usagi.vcxproj">
       <Project>{f9061c06-bce6-416b-9aeb-31351810b7ba}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\Module\Usagi\Module\Platform\Win10\Win10.vcxproj">
+    <ProjectReference Include="..\..\Modules\Usagi\Modules\Platforms\Win10\Win10.vcxproj">
       <Project>{ba6b6731-dfa8-4da0-b121-d3d8d584b001}</Project>
     </ProjectReference>
   </ItemGroup>
