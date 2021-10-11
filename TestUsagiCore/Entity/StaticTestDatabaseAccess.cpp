@@ -19,7 +19,7 @@ struct ComponentB
 };
 
 using Database = ComponentFilter<ComponentA, ComponentB>::
-    apply<EntityDatabaseInMemory>;
+    apply<EntityDatabaseDefaultConfig>;
 
 using ArchetypeA = Archetype<ComponentA>;
 using ArchetypeB = Archetype<ComponentB>;
@@ -31,7 +31,7 @@ struct SystemA
 
 struct SystemB
 {
-    using WriteAllAccess = void;
+    using WriteAccess = AllComponents;
 };
 
 struct SystemC

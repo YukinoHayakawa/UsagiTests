@@ -15,7 +15,9 @@ struct ComponentA
 };
 
 using Archetype1 = Archetype<ComponentA>;
-using Database1 = Archetype1::ComponentFilterT::apply<EntityDatabaseInMemory>;
+using Database1 = Archetype1::ComponentFilterT::apply<
+    EntityDatabaseDefaultConfig
+>;
 
 struct SystemA
 {

@@ -28,7 +28,7 @@ struct SystemA
 };
 */
 
-using Database1 = WriteFilter::apply<EntityDatabaseInMemory>;
+using Database1 = WriteFilter::apply<EntityDatabaseDefaultConfig>;
 }
 
 TEST(EntityDatabaseStotrgeTest, FlagComponent)
