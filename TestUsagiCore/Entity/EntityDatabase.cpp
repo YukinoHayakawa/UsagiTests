@@ -29,6 +29,8 @@ TEST(EntityDatabaseTest, FilteredView)
     Archetype archetype;
 
     // Add tags
+    // there are 5 pages in total, the first 4 are fully used and the last one
+    // is half empty
     for(int i = 0; i < 4 * 32 + 16; ++i)
     {
         const auto id = db.insert(archetype);
@@ -85,6 +87,7 @@ TEST(EntityDatabaseTest, FilteredView)
         for(auto &&e : access.view())
         {
             const auto id = e.id();
+            // tags only added to odd entities on even pages.
             if(id.offset % 2 == 1 && id.page % 2 == 0)
                 e.add_component(C<ComponentTag>());
         }

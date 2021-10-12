@@ -162,6 +162,7 @@ TEST_F(EntityDatabasePageTest, DeleteLastPage)
 TEST_F(EntityDatabasePageTest, VoidFilteredIterator)
 {
     db.entity_view<ComponentAccessAllowAll>(id2).destroy();
+    // page not reclaimed here
 
     auto unfiltered_view = access.unfiltered_view();
 

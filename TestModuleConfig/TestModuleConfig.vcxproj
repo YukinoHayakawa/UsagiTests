@@ -93,13 +93,13 @@
     <None Include="pipeline.yaml" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Module\Usagi\Module\Common\Config\Config.vcxproj">
+    <ProjectReference Include="..\..\Modules\Usagi\Modules\Common\Config\Config.vcxproj">
       <Project>{12aad8c0-60d9-4f0b-adeb-33f22fbf64f6}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\Module\Usagi\Module\Platform\Win10\Win10.vcxproj">
+    <ProjectReference Include="..\..\Modules\Usagi\Modules\Platforms\Win10\Win10.vcxproj">
       <Project>{ba6b6731-dfa8-4da0-b121-d3d8d584b001}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\Module\Usagi\Module\Service\Asset\Asset.vcxproj">
+    <ProjectReference Include="..\..\Modules\Usagi\Modules\Services\Asset\Asset.vcxproj">
       <Project>{8722e8a6-ddc8-4283-8dff-45cd15e7dc6f}</Project>
     </ProjectReference>
   </ItemGroup>

@@ -13,9 +13,9 @@ int main(int argc, char **argv) {
 
 #define NDEBUG
 
-#include <Usagi/Module/Service/Asset/AssetManager.hpp>
-#include <Usagi/Module/Service/Asset/AssetSourceFilesystem.hpp>
-#include <Usagi/Module/Common/Config/AssetBuilderYamlObject.hpp>
+#include <Usagi/Modules/Services/Asset/AssetManager.hpp>
+#include <Usagi/Modules/Services/Asset/AssetSourceFilesystem.hpp>
+#include <Usagi/Modules/Common/Config/AssetBuilderYamlObject.hpp>
 
 using namespace usagi;
 
