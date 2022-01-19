@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <ProjectGuid>{c5f4045c-a539-4859-aa55-114e2f668eec}</ProjectGuid>
+    <RootNamespace>TestGraphicsVulkan</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <IncludePath>$(Dir_IncludePath);$(IncludePath)</IncludePath>
+    <LibraryPath>$(Dir_LibraryPath);$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="Pipeline.cpp" />
+    <ClCompile Include="ShaderModule.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Modules\Usagi\Modules\Platforms\VulkanWSIWin32\VulkanWSIWin32.vcxproj">
+      <Project>{834d7749-e81f-4be5-b397-7bf1c7703502}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Modules\Usagi\Modules\Platforms\Win10\Win10.vcxproj">
+      <Project>{ba6b6731-dfa8-4da0-b121-d3d8d584b001}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Modules\Usagi\Modules\Resources\ResGraphicsCommon\ResGraphicsCommon.vcxproj">
+      <Project>{5ac75a07-fb79-4059-b9bf-0a159a75151f}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Modules\Usagi\Modules\Resources\ResGraphicsVulkan\ResGraphicsVulkan.vcxproj">
+      <Project>{e975bdf3-7afd-4da0-8b3e-adc22c128bff}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Modules\Usagi\Modules\Resources\ResJson\ResJson.vcxproj">
+      <Project>{b77582cc-ec91-413a-b942-38e38cc90e16}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Modules\Usagi\Modules\Runtime\Asset\Asset.vcxproj">
+      <Project>{8722e8a6-ddc8-4283-8dff-45cd15e7dc6f}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Modules\Usagi\Modules\Runtime\HeapManager\HeapManager.vcxproj">
+      <Project>{dd541748-d082-4558-b456-c47f9d893211}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Common.hpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

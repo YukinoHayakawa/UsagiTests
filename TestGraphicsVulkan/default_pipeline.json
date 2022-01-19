@@ -1,0 +1,20 @@
+{
+    "rasterization": {
+        "polygon_mode": "fill",
+        "cull_mode": "back",
+        "front_face": "counter_clockwise"
+    },
+    "depth_stencil": {
+        "depth_test": true,
+        "depth_write": true,
+        "depth_compare_op": "<="
+    },
+    "shaders": {
+        "vertex": {
+            "entry": "main"
+        },
+        "fragment": {
+            "entry": "main"
+        }
+    }
+}
