@@ -62,14 +62,14 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Modules\Usagi\Modules\Platforms\Win10\Win10.vcxproj">
-      <Project>{ba6b6731-dfa8-4da0-b121-d3d8d584b001}</Project>
-    </ProjectReference>
     <ProjectReference Include="..\..\Modules\Usagi\Modules\Resources\ResJson\ResJson.vcxproj">
       <Project>{b77582cc-ec91-413a-b942-38e38cc90e16}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\Modules\Usagi\Modules\Runtime\Executive\Executive.vcxproj">
       <Project>{345cdbb7-1ec3-4e1c-ad4f-856a774430f5}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Targets\DefaultPlatform\DefaultPlatform.vcxproj">
+      <Project>{e989bbfc-a4cd-4f94-b15b-ec7b05f80e3f}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

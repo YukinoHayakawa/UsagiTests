@@ -83,15 +83,21 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Modules\Usagi\Modules\Platforms\Win10\Win10.vcxproj">
-      <Project>{ba6b6731-dfa8-4da0-b121-d3d8d584b001}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\..\Modules\Usagi\Modules\Services\Asset\Asset.vcxproj">
+    <ProjectReference Include="..\..\Modules\Usagi\Modules\Runtime\Asset\Asset.vcxproj">
       <Project>{8722e8a6-ddc8-4283-8dff-45cd15e7dc6f}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Targets\DefaultPlatform\DefaultPlatform.vcxproj">
+      <Project>{e989bbfc-a4cd-4f94-b15b-ec7b05f80e3f}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AssetLoading.cpp" />
     <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="1.txt" />
+    <Text Include="2.txt" />
+    <Text Include="3.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

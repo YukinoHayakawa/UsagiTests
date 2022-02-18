@@ -58,16 +58,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CommandList.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Pipeline.cpp" />
     <ClCompile Include="ShaderModule.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Modules\Usagi\Modules\Platforms\VulkanWSIWin32\VulkanWSIWin32.vcxproj">
-      <Project>{834d7749-e81f-4be5-b397-7bf1c7703502}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\..\Modules\Usagi\Modules\Platforms\Win10\Win10.vcxproj">
-      <Project>{ba6b6731-dfa8-4da0-b121-d3d8d584b001}</Project>
+    <ProjectReference Include="..\..\Modules\Usagi\Modules\Platforms\Vulkan\Vulkan.vcxproj">
+      <Project>{e51ee650-b088-4940-bee6-108c8a0ed508}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\Modules\Usagi\Modules\Resources\ResGraphicsCommon\ResGraphicsCommon.vcxproj">
       <Project>{5ac75a07-fb79-4059-b9bf-0a159a75151f}</Project>
