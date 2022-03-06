@@ -5,7 +5,7 @@
 TEST_F(VulkanTest, ResLoadShaderModule)
 {
     [[maybe_unused]]
-    auto &shader = mHeapManager.resource<RbVulkanShaderModule>(
+    auto shader = mHeapManager.resource<RbVulkanShaderModule>(
         { },
         &mExecutor,
         [] {

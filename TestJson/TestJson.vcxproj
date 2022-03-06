@@ -59,7 +59,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Json.cpp" />
-    <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Modules\Usagi\Modules\Resources\ResJson\ResJson.vcxproj">
@@ -68,8 +67,8 @@
     <ProjectReference Include="..\..\Modules\Usagi\Modules\Runtime\Executive\Executive.vcxproj">
       <Project>{345cdbb7-1ec3-4e1c-ad4f-856a774430f5}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\Targets\DefaultPlatform\DefaultPlatform.vcxproj">
-      <Project>{e989bbfc-a4cd-4f94-b15b-ec7b05f80e3f}</Project>
+    <ProjectReference Include="..\..\Targets\DefaultTest\DefaultTest.vcxproj">
+      <Project>{9cfb17f8-cc29-4e3b-8ab6-45ddff2d1a81}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

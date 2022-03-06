@@ -26,6 +26,6 @@ protected:
 
     StdTaskExecutor mExecutor;
     VulkanGpuDevice mDevice;
-    // heap objects may refer to gpu device
+    // heap objects may refer to gpu device, put at the end
     HeapManager mHeapManager;
 };

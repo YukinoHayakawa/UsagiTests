@@ -81,9 +81,51 @@ TEST(HeapManagerTest, BasicObjectLoadingTest)
         [] { return std::forward_as_tuple("hello."); }
     ).make_request();
 
+    const auto str = accessor.await();
+
+    EXPECT_EQ(*str, "hello.");
+}
+
+TEST(HeapManagerTest, SyncedObjectLoadingTest)
+{
+    HeapManager manager;
+
+    manager.add_heap<HeapAnyObject>();
+
+    auto accessor = manager.resource_transient<BasicStringBuilder>(
+        "hello."
+    );
+
+    // lifetime extended
     const auto &str = accessor.await();
 
-    EXPECT_EQ(str, "hello.");
+    EXPECT_EQ(*str, "hello.");
+}
+
+TEST(HeapManagerTest, ResourceCacheTest)
+{
+    HeapManager manager;
+    StdTaskExecutor executor;
+
+    manager.add_heap<HeapAnyObject>();
+
+    auto accessor = manager.resource<BasicStringBuilder>(
+        { },
+        &executor,
+        [] { return std::forward_as_tuple("hello."); }
+    ).make_request();
+
+    const auto &str = accessor.await();
+
+    EXPECT_EQ(*str, "hello.");
+
+    EXPECT_NE(accessor.descriptor(), HeapResourceDescriptor());
+
+    EXPECT_EQ(manager.resource<BasicStringBuilder>(
+        { },
+        &executor,
+        [] { return std::forward_as_tuple("hello."); }
+    ).make_request().descriptor(), accessor.descriptor());
 }
 
 class StringConcatenationBuilder
@@ -110,15 +152,41 @@ public:
     ResourceState construct(
         ResourceConstructDelegate<StringConcatenationBuilder> &delegate)
     {
-        auto &prev_string = delegate.resource<BasicStringBuilder>(
+        auto prev_string = delegate.resource<BasicStringBuilder>(
             mPrevString
-        ).await();
+        ).await().cref();
 
         auto &this_str = delegate.allocate();
         this_str.emplace<std::string>(prev_string) += mThisString;
         return ResourceState::READY;
     }
 };
+
+TEST(HeapManagerTest, BuilderTypeValidation)
+{
+    HeapManager manager;
+    StdTaskExecutor executor;
+
+    manager.add_heap<HeapAnyObject>();
+
+    auto accessor = manager.resource<BasicStringBuilder>(
+        { },
+        &executor,
+        [] { return std::forward_as_tuple("hello."); }
+    ).make_request();
+
+    const auto &str = accessor.await();
+
+    EXPECT_EQ(*str, "hello.");
+
+    EXPECT_NE(accessor.descriptor(), HeapResourceDescriptor());
+
+    EXPECT_THROW(manager.resource<StringConcatenationBuilder>(
+        accessor.descriptor(),
+        &executor,
+        [] { return std::forward_as_tuple("hello.", "world."); }
+    ).make_request(), std::runtime_error);
+}
 
 TEST(HeapManagerTest, ResourceSynthesisTest)
 {
@@ -135,7 +203,7 @@ TEST(HeapManagerTest, ResourceSynthesisTest)
 
     const auto &str = accessor.await();
 
-    EXPECT_EQ(str, "hello.world.");
+    EXPECT_EQ(*str, "hello.world.");
 }
 
 class RawAssetMemoryViewBuilder
@@ -198,21 +266,7 @@ struct Pixel
     {
     }
 
-    // bug gtest doesn't recognize <=>??
-    friend auto operator<=>(const Pixel &lhs, const Pixel &rhs)
-    {
-        return std::tie(lhs.r, lhs.g, lhs.b) <=> std::tie(rhs.r, rhs.g, rhs.b);
-    }
-
-    friend bool operator==(const Pixel &lhs, const Pixel &rhs)
-    {
-        return std::tie(lhs.r, lhs.g, lhs.b) == std::tie(rhs.r, rhs.g, rhs.b);
-    }
-
-    friend bool operator!=(const Pixel &lhs, const Pixel &rhs)
-    {
-        return !(lhs == rhs);
-    }
+    auto operator<=>(const Pixel &rhs) const = default;
 };
 
 struct Image
@@ -247,7 +301,7 @@ struct HeapTransfer<SrcHeap, ReadonlyMemoryView, DstHeap, Image>
             &comp
         );
         assert(suc == 1);
-        // todo: the resize should be delegated to some allocator and the memory shoulbe properly managed.
+        // todo: the resize should be delegated to some allocator and the memory should be properly managed.
         dst_res.pixels.resize(dst_res.width * dst_res.height, { });
         // todo manage memory
         const stbi_uc* data = stbi_load_from_memory(
@@ -258,6 +312,7 @@ struct HeapTransfer<SrcHeap, ReadonlyMemoryView, DstHeap, Image>
             &comp,
             3
         );
+        assert(data != nullptr);
         memcpy(dst_res.pixels.data(), data, x * y * sizeof(Pixel));
 
         return ResourceState::READY;
@@ -318,16 +373,15 @@ TEST(HeapManagerTest, ResourceTransferTest)
         [] { return std::forward_as_tuple("test.png"); }
     ).make_request();
 
-    const auto &img = accessor.await();
-
-    EXPECT_EQ(img.width, 8);
-    EXPECT_EQ(img.height, 8);
-    for(int i = 0; i < img.height; ++i)
+    const auto img = accessor.await();
+    
+    EXPECT_EQ(img->width, 8);
+    EXPECT_EQ(img->height, 8);
+    for(int i = 0; i < img->height; ++i)
     {
-        for(int j = 0; j < img.width; ++j)
+        for(int j = 0; j < img->width; ++j)
         {
-            EXPECT_EQ(img.pixels[i * img.width + j], Pixel(91, 206, 250));
+            EXPECT_EQ(img->pixels[i * img->width + j], Pixel(91, 206, 250));
         }
     }
-
 }

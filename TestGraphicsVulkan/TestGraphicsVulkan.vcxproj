@@ -59,11 +59,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CommandList.cpp" />
-    <ClCompile Include="main.cpp" />
     <ClCompile Include="Pipeline.cpp" />
     <ClCompile Include="ShaderModule.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Modules\Usagi\Modules\Platforms\VulkanWSIDefault\VulkanWSIDefault.vcxproj">
+      <Project>{45ceea35-4c4d-4a76-9845-95028b39a128}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\..\Modules\Usagi\Modules\Platforms\Vulkan\Vulkan.vcxproj">
       <Project>{e51ee650-b088-4940-bee6-108c8a0ed508}</Project>
     </ProjectReference>
@@ -81,6 +83,9 @@
     </ProjectReference>
     <ProjectReference Include="..\..\Modules\Usagi\Modules\Runtime\HeapManager\HeapManager.vcxproj">
       <Project>{dd541748-d082-4558-b456-c47f9d893211}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Targets\DefaultTest\DefaultTest.vcxproj">
+      <Project>{9cfb17f8-cc29-4e3b-8ab6-45ddff2d1a81}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

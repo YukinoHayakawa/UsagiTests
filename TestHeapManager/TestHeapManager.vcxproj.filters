@@ -15,10 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="HeapManager.cpp">
+    <ClCompile Include="TestHeapManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

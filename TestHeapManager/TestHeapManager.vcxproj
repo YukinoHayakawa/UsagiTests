@@ -58,8 +58,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="HeapManager.cpp" />
-    <ClCompile Include="main.cpp" />
+    <ClCompile Include="TestHeapManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Modules\Usagi\Modules\Runtime\Asset\Asset.vcxproj">
@@ -68,8 +67,8 @@
     <ProjectReference Include="..\..\Modules\Usagi\Modules\Runtime\HeapManager\HeapManager.vcxproj">
       <Project>{dd541748-d082-4558-b456-c47f9d893211}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\Targets\DefaultPlatform\DefaultPlatform.vcxproj">
-      <Project>{e989bbfc-a4cd-4f94-b15b-ec7b05f80e3f}</Project>
+    <ProjectReference Include="..\..\Targets\DefaultTest\DefaultTest.vcxproj">
+      <Project>{9cfb17f8-cc29-4e3b-8ab6-45ddff2d1a81}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
