@@ -107,6 +107,7 @@
     <ClCompile Include="Library\Graph\TransitiveReduce.cpp" />
     <ClCompile Include="Library\Meta\Set.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Runtime\CircularAllocatorTest.cpp" />
     <ClCompile Include="Runtime\MemoryMappedFile.cpp" />
     <ClCompile Include="Runtime\PagedStorage.cpp" />
     <ClCompile Include="Runtime\VmAllocator.cpp" />
