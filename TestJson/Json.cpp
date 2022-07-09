@@ -1,11 +1,11 @@
 ﻿#include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
 
 #include <Usagi/Modules/Resources/ResJson/RbCascadingJsonConfig.hpp>
 #include <Usagi/Modules/Resources/ResJson/RbJsonDocument.hpp>
-#include <Usagi/Modules/Runtime/Asset/HeapAssetManager.hpp>
+#include <Usagi/Modules/Runtime/Asset/AssetManager2.hpp>
 #include <Usagi/Modules/Runtime/Asset/Package/AssetPackageFilesystem.hpp>
 #include <Usagi/Modules/Runtime/Executive/ServiceAsyncWorker.hpp>
-#include <Usagi/Modules/Runtime/HeapManager/HeapFreeObjectManager.hpp>
 #include <Usagi/Modules/Runtime/HeapManager/HeapManager.hpp>
 
 using namespace usagi;
@@ -15,9 +15,8 @@ TEST(Json, JsonLoadTest)
     HeapManager heap_manager;
     StdTaskExecutor executor;
 
-    auto *asset_manager = heap_manager.add_heap<HeapAssetManager>();
+    auto *asset_manager = heap_manager.add_heap<AssetManager2>();
     asset_manager->add_package(std::make_unique<AssetPackageFilesystem>("."));
-    heap_manager.add_heap<HeapFreeObjectManager>();
 
     auto accessor = heap_manager.resource<RbJsonDocument>(
         { },
@@ -27,7 +26,7 @@ TEST(Json, JsonLoadTest)
 
     const auto &doc = accessor.await();
 
-    EXPECT_TRUE(doc.root.contains("hello"));
+    EXPECT_TRUE(doc->contains("hello"));
 }
 
 TEST(Json, JsonOverrideTest)
@@ -35,9 +34,8 @@ TEST(Json, JsonOverrideTest)
     HeapManager heap_manager;
     StdTaskExecutor executor;
 
-    auto *asset_manager = heap_manager.add_heap<HeapAssetManager>();
+    auto *asset_manager = heap_manager.add_heap<AssetManager2>();
     asset_manager->add_package(std::make_unique<AssetPackageFilesystem>("."));
-    heap_manager.add_heap<HeapFreeObjectManager>();
 
     auto accessor = heap_manager.resource<RbCascadingJsonConfig>(
         { },
@@ -47,8 +45,8 @@ TEST(Json, JsonOverrideTest)
 
     const auto &doc = accessor.await();
 
-    EXPECT_TRUE(doc.root.contains("world"));
-    EXPECT_TRUE(doc.root.contains("base"));
-    EXPECT_FALSE(doc.root.contains("inherit"));
-    EXPECT_EQ(doc.root["world"].get<bool>(), true);
+    EXPECT_TRUE(doc->contains("world"));
+    EXPECT_TRUE(doc->contains("base"));
+    EXPECT_FALSE(doc->contains("inherit"));
+    EXPECT_EQ((*doc)["world"].get<bool>(), true);
 }
