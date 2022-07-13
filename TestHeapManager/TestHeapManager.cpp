@@ -1,6 +1,7 @@
 ﻿#include <gtest/gtest.h>
 
 #include <any>
+#include <ostream>
 
 #include <Usagi/Library/Memory/MemoryArena.hpp>
 #include <Usagi/Modules/Common/Math/Matrix.hpp>
@@ -178,6 +179,159 @@ TEST(HeapManagerTest, ResourceSynthesisTest)
 
     EXPECT_EQ(*str, "hello.world.");
 }
+
+TEST(HeapManagerTest, ResourceDescriptorIdentityTest)
+{
+    HeapManager manager;
+    StdTaskExecutor executor;
+
+    // manager.add_heap<HeapAnyObject>();
+
+    const auto desc1 = manager.resource<BasicStringBuilder>(
+        { },
+        &executor,
+        [] { return std::forward_as_tuple("hello."); }
+    ).make_request().descriptor();
+
+    const auto desc2 = manager.resource<BasicStringBuilder>(
+        { },
+        &executor,
+        [] { return std::make_tuple(std::string("hello.")); }
+    ).make_request().descriptor();
+
+    EXPECT_EQ(desc1, desc2);
+}
+
+struct Counters
+{
+    int ctor = 0;
+    int dtor = 0;
+    int copy_ctor = 0;
+    int move_ctor = 0;
+    int copy_assign = 0;
+    int move_assign = 0;
+
+    friend std::ostream & operator<<(std::ostream &os, const Counters &obj)
+    {
+        return os
+            << "ctor: " << obj.ctor
+            << "\ndtor: " << obj.dtor
+            << "\ncopy_ctor: " << obj.copy_ctor
+            << "\nmove_ctor: " << obj.move_ctor
+            << "\ncopy_assign: " << obj.copy_assign
+            << "\nmove_assign: " << obj.move_assign;
+    }
+};
+
+struct ValueCopyCounter
+{
+    Counters *counters = nullptr;
+
+    explicit ValueCopyCounter(Counters *counters)
+        : counters(counters)
+    {
+        ++counters->ctor;
+    }
+
+    ValueCopyCounter(const ValueCopyCounter &other)
+        : counters { other.counters }
+    {
+        ++counters->copy_ctor;
+    }
+
+    ValueCopyCounter(ValueCopyCounter &&other) noexcept
+        : counters { other.counters }
+    {
+        ++counters->move_ctor;
+    }
+
+    ValueCopyCounter & operator=(const ValueCopyCounter &other)
+    {
+        if(this == &other)
+            return *this;
+        counters = other.counters;
+        ++counters->copy_assign;
+        return *this;
+    }
+
+    ValueCopyCounter & operator=(ValueCopyCounter &&other) noexcept
+    {
+        if(this == &other)
+            return *this;
+        counters = other.counters;
+        ++counters->move_assign;
+        return *this;
+    }
+
+    ~ValueCopyCounter()
+    {
+        ++counters->dtor;
+    }
+};
+
+class CopyCountBuilder
+{
+public:
+    using ProductT = int;
+    using BuildArguments = std::tuple<TransparentArg<const ValueCopyCounter &>>;
+
+    static ResourceState construct(
+        ResourceConstructDelegate<ProductT> &delegate,
+        const ValueCopyCounter &)
+    {
+        delegate.emplace(12345);
+
+        return ResourceState::READY;
+    }
+};
+
+TEST(HeapManagerTest, ResourceBuildArgCopyCountMakeTupleAsync)
+{
+    HeapManager manager;
+    StdTaskExecutor executor;
+
+    Counters counters;
+
+    auto accessor = manager.resource<CopyCountBuilder>(
+        { },
+        &executor,
+        [&] { return std::make_tuple(ValueCopyCounter(&counters)); }
+    ).make_request().await();
+
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(1ms);
+
+    EXPECT_EQ(counters.ctor, 1);
+    // one inside make tuple, one when the tuple from arg lambda is moved into
+    // request handler
+    EXPECT_EQ(counters.move_ctor, 2);
+    // value copied into build task for async execution
+    EXPECT_EQ(counters.copy_ctor, 1);
+
+    std::cerr << counters << std::endl;
+}
+
+TEST(HeapManagerTest, ResourceBuildArgCopyCountMakeTupleSynced)
+{
+    HeapManager manager;
+    StdTaskExecutor executor;
+
+    Counters counters;
+
+    const auto accessor = manager.resource_transient<CopyCountBuilder>(
+        ValueCopyCounter(&counters)
+    ).get();
+
+    EXPECT_EQ(*accessor, 12345);
+
+    // rvalue ref will be forwarded to builder without copying the value
+    EXPECT_EQ(counters.ctor, 1);
+    EXPECT_EQ(counters.move_ctor, 0);
+    EXPECT_EQ(counters.copy_ctor, 0);
+
+    std::cerr << counters << std::endl;
+}
+
 //
 // class RawAssetMemoryViewBuilder
 // {
