@@ -1,6 +1,6 @@
 ﻿#include "Common.hpp"
 
-#include <Usagi/Modules/Resources/ResGraphicsVulkan/RbVulkanShaderModule.hpp>
+#include <Usagi/Modules/Resources/ResGraphicsVulkan/Pipeline/RbVulkanShaderModule.hpp>
 
 TEST_F(VulkanTest, ResLoadShaderModule)
 {
@@ -9,10 +9,9 @@ TEST_F(VulkanTest, ResLoadShaderModule)
         { },
         &mExecutor,
         [] {
-            static auto gpu_shader_stage = GpuShaderStage::VERTEX;
-            return std::forward_as_tuple(
+            return std::make_tuple(
                 "shader.vert",
-                gpu_shader_stage // bug don't forward_as_tuple rvalue!
+                GpuShaderStage::VERTEX
             );
         }
     ).make_request().await();

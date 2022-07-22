@@ -1,6 +1,6 @@
 ﻿#include "Common.hpp"
 
-#include <Usagi/Modules/Resources/ResGraphicsVulkan/RbVulkanGraphicsPipeline.hpp>
+#include <Usagi/Modules/Resources/ResGraphicsVulkan/Pipeline/RbVulkanGraphicsPipeline.hpp>
 
 TEST_F(VulkanTest, ResLoadGraphicsPipeline)
 {
@@ -9,7 +9,7 @@ TEST_F(VulkanTest, ResLoadGraphicsPipeline)
         { },
         &mExecutor,
         [] {
-            return std::forward_as_tuple("pipeline_1.json");
+            return std::make_tuple("pipeline_1.json");
         }
     ).make_request().await();
     EXPECT_NE(pipeline->pipeline(), vk::Pipeline());
