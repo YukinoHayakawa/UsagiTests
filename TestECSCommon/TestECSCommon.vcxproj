@@ -71,6 +71,9 @@
   <ItemGroup>
     <ClInclude Include="App.hpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="CreateLib.cpp" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

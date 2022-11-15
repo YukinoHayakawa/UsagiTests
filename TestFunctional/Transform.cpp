@@ -47,22 +47,22 @@ TEST_F(TransformTest, DoubleValueTest)
     generate_entities<CPreTransformValue<int>>(init_values, 
         [](auto &&init_val, auto &c0) {
             c0.value = init_val;
-        });
+        }, 5);
 
     validate_entity_range(
         filtered_range(CQuery<C<CPreTransformValue<int>>>()),
-        [&, i = 0] (auto &&e) mutable{
+        [&, i = 0] (auto &&e) mutable {
             EXPECT_EQ(e(C<CPreTransformValue<int>>()).value, init_values[i++]);
-        }
+        }, 5
     );
 
     update_system<SysDoubleValues>();
 
     validate_entity_range(
         filtered_range(CQuery<C<CPreTransformValue<int>>>()),
-        [&, i = 0] (auto &&e) mutable{
+        [&, i = 0] (auto &&e) mutable {
             EXPECT_EQ(e(C<CPreTransformValue<int>>()).value, init_values[i]);
             EXPECT_EQ(e(C<CPostTransformValue<int>>()).value, 2 * init_values[i++]);
-        }
+        }, 5
     );
 }

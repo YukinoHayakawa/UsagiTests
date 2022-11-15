@@ -51,8 +51,12 @@ struct TestApp : ::testing::Test
     }
 
     template <Component... ArchetypeComponents>
-    void generate_entities(auto &&value_range, auto &&initializer)
+    void generate_entities(
+        auto &&value_range,
+        auto &&initializer,
+        const std::size_t expect_generated_entities = -1)
     {
+        std::size_t num_inserted = 0;
         Archetype<ArchetypeComponents...> archetype;
         for(auto &&value : value_range)
         {
@@ -60,15 +64,34 @@ struct TestApp : ::testing::Test
                 value,
                 archetype.template component<ArchetypeComponents>()...
             );
+            db.insert(archetype);
+            ++num_inserted;
         }
+        if(expect_generated_entities != -1)
+            EXPECT_EQ(expect_generated_entities, num_inserted);
     }
 
-    void validate_entity_range(auto &&range, auto &&validator)
+    void validate_entity_range(
+        auto &&range,
+        auto &&validator,
+        const std::size_t expect_visited_entities = -1)
     {
+        std::size_t count = 0;
         for(auto &&e : range)
         {
             validator(e);
+            ++count;
         }
+        if(expect_visited_entities != -1) 
+            EXPECT_EQ(expect_visited_entities, count);
+    }
+
+    void validate_entity_range_size(auto &&range, std::size_t size)
+    {
+        auto begin = range.begin();
+        auto end = range.end();
+        EXPECT_EQ(std::distance(begin, end), size);
+        // todo EXPECT_EQ(std::ranges::size(range), size);
     }
 }
 ;
