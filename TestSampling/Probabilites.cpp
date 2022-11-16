@@ -74,8 +74,9 @@ TEST_F(ProbabilityTest, ExponentialScalingUnityTest)
     constexpr std::size_t n_pop = 64;
     
     std::mt19937_64 rng { std::random_device()() };
-    std::uniform_real_distribution<> dist(min_fitness, max_fitness);
+    std::uniform_real_distribution dist(min_fitness, max_fitness);
 
+    // initialize fitness values
     generate_entities<CFitnessValue>(
         ranges::views::generate_n([&] { return dist(rng); }, n_pop),
         [](auto &&val, auto &&fitness) { fitness.value = val; },
@@ -93,8 +94,10 @@ TEST_F(ProbabilityTest, ExponentialScalingUnityTest)
         n_pop
     );
 
+    // build fitness index
     update_system<SysRebuildFitnessIndex>();
 
+    // visit entities in decreasing order of fitness
     fmt::print("sorted:\n");
     expect_monotonically_decreasing(
         indexed_key_range<IndexFitnessDescending>(),
@@ -103,6 +106,7 @@ TEST_F(ProbabilityTest, ExponentialScalingUnityTest)
         n_pop
     );
 
+    // generate probability distribution
     update_system<SysWriteExponentialProbability>();
     
     fmt::print("probabilities:\n");
