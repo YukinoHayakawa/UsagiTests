@@ -85,6 +85,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Probabilites.cpp" />
+    <ClCompile Include="Sampling.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Modules\Usagi\Modules\Algorithms\Statistics\Sampling\Sampling.vcxproj">

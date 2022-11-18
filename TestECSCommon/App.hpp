@@ -8,6 +8,7 @@
 #include <Usagi/Entity/Component.hpp>
 #include <Usagi/Entity/EntityDatabase.hpp>
 #include <Usagi/Entity/System.hpp>
+#include <Usagi/Modules/Common/Indexing/ServiceExternalEntityIndex.hpp>
 
 namespace usagi
 {
@@ -49,7 +50,11 @@ struct TestApp : ::testing::Test
         );
     }
 
-
+    template <typename ServiceT>
+    auto & service()
+    {
+        return static_cast<ServiceT &>(runtime).get_service();
+    }
 
     template <typename IndexDescriptor>
     auto & get_index(IndexDescriptor index)
@@ -74,7 +79,7 @@ struct TestApp : ::testing::Test
             EXPECT_EQ(expect_visited_entities, count);
     }
 
-    void validate_entity_range_size(auto &&range, std::size_t size)
+    void expect_entity_range_size(auto &&range, std::size_t size)
     {
         auto begin = range.begin();
         auto end = range.end();
