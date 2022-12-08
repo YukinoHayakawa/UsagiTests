@@ -41,6 +41,7 @@ struct TaskSchedulingStatus
 
 struct ExampleTaskTraits
 {
+    SeqIndexT seq_id = -1;
     TaskIndexT task_id = -1;
     SubtaskIndexT subtask_id = -1;
     const TaskGraph &graph;
@@ -52,6 +53,7 @@ struct ExampleTaskTraits
     {
         // todo return the real one by querying the task profile & proc profile
         // todo handle heterogeneity
+        // todo have to read task profile & subtask fraction component
         return 10;
     }
 
@@ -154,7 +156,6 @@ TEST(SchedulingTest, ListSchedulerSubtasks)
     CChromosomePermutation<num_subtasks * num_tasks> chromosome;
     chromosome.init_random(rng.get_service());
 
- 
     // init in-degrees
     std::array<TaskSchedulingStatus, num_tasks> task_statuses;
     for(std::size_t i = 0; auto &&status : task_statuses)
@@ -162,44 +163,7 @@ TEST(SchedulingTest, ListSchedulerSubtasks)
         status.num_unfinished_predecessors = graph.in_degrees()[i];
         ++i;
     }
-
-
-    // const auto projection = [&](const TaskIndexT &seq_idx) {
-    //     // const auto sequential = job_index.task * splittability(0) +
-    //         // job_index.subtask;
-    //     // return schedule_order.order[sequential];
-    //     return chromosome.permutation[seq_idx];
-    // };
-
-    // // this type should be transparent to the scheduler
-    // struct Workload
-    // {
-    //     TaskIndexT task_id = -1;
-    //     SubtaskIndexT subtask_id = -1;
-    // };
-    //
-    //
-    // // todo use real exec time
-    // auto task_exec_time = [](const Workload &) {
-    //     return 10;
-    // };
-    //
-    //
-    // auto workload_from_seq_id = [&](SeqIndexT seq_id) {
-    //     return Workload {
-    //         .task_id = TaskIndexT(seq_id / num_tasks),
-    //         .subtask_id = SubtaskIndexT(seq_id % num_tasks)
-    //     };
-    // };
-    //
-    // const auto projection = [&](const Workload &workload) {
-    //     // const auto sequential = job_index.task * splittability(0) +
-    //         // job_index.subtask;
-    //     // return schedule_order.order[sequential];
-    //     return chromosome.permutation[
-    //         workload.task_id * num_subtasks + workload.subtask_id];
-    // };
-
+    
     const auto projection = [&](SeqIndexT seq_id) {
         // const auto sequential = job_index.task * splittability(0) +
         // job_index.subtask;
@@ -254,7 +218,6 @@ TEST(SchedulingTest, ListSchedulerSubtasks)
         };
     };
 
-
     // how to use a function to handle the impact of scheduling a specific task
     // on a specific time slot. (interference with co-scheduled tasks?
     // i think there is no need to make any decisions based on that information
@@ -296,7 +259,7 @@ TEST(SchedulingTest, ListSchedulerSubtasks)
 
             // todo this might actually fail
             // todo handle task interference/SMT
-            out_schedule.occupy(proc_index, task_begin, task_end);
+            out_schedule.occupy(proc_index, task.seq_id, task_begin, task_end);
 
             // the task trait is responsible for pushing any further tasks
             task.on_scheduled(enqueue_func, proc_index, task_begin, task_end);
@@ -313,6 +276,7 @@ TEST(SchedulingTest, ListSchedulerSubtasks)
             seq_idx
         );
         return ExampleTaskTraits {
+            .seq_id = seq_idx,
             .task_id = TaskIndexT(seq_idx / num_subtasks),
             .subtask_id = SubtaskIndexT(seq_idx % num_subtasks),
             .graph = graph.task_graph(),
