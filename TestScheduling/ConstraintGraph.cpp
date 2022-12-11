@@ -29,6 +29,7 @@ TEST(SchedulerTest, SimpleConstraintGraphTest)
     }
 
     ScheduleConstraintGraphSimple constraint_graph;
+    // using VertexIndexT = ScheduleConstraintGraphSimple::VertexIndexT;
 
     auto [root_idx, root_ref] = constraint_graph.add_vertex<ScheduleNodeRoot>();
 
@@ -40,7 +41,7 @@ TEST(SchedulerTest, SimpleConstraintGraphTest)
     {
         auto [index, proc] = constraint_graph.add_vertex<ScheduleNodeProcessorReady>();
         proc.proc_id = i;
-        proc.time = 0;
+        proc.ready_time = 0;
 
         constraint_graph.add_edge<ScheduleNodeRoot, ScheduleNodeProcessorReady>(root_idx, index);
     }
@@ -91,13 +92,51 @@ TEST(SchedulerTest, SimpleConstraintGraphTest)
         }
     }
 
+    // push initial task
+    constraint_graph.add_edge<ScheduleNodeRoot, ScheduleNodeBarrier>(
+        root_idx, 
+        task_begin_indices[task_graph.source_task_id()]
+    );
+
+    // VertexIndexT proc_idx = -1;
+
+    auto alloc_policy_earliest_idle = [&] {
+        auto range = constraint_graph.proc_ready_nodes();
+        auto iter = std::ranges::min_element(
+            range,
+            std::ranges::less { },
+            [](auto &&p) { return std::get<1>(p); }
+        );
+        return std::pair { std::move(range), std::move(iter) };
+    };
+    
+    // perform list scheduling
+    while(!constraint_graph.task_queue.empty())
+    {
+        auto task = constraint_graph.task_queue.top();
+        constraint_graph.task_queue.pop();
+
+        auto [proc_range, proc_iter] = alloc_policy_earliest_idle();
+        assert(proc_iter != proc_range.end());
+        /*auto &exec = */constraint_graph.add_edge<
+            ScheduleNodeProcessorReady,
+            ScheduleNodeExec
+        >(std::get<0>(*proc_iter), task);
+    }
+
+    LOG(error, "makespan: {}",constraint_graph.vertex<ScheduleNodeBarrier>(
+        task_end_indices[task_graph.sink_task_id()]).finish_time);
+
+    // push all ready tasks into the queue
+
+
     (void)0;
 
-    constraint_graph.add_edge<ScheduleNodeProcessorReady, ScheduleNodeExec>(1, 7);
+    // constraint_graph.add_edge<ScheduleNodeProcessorReady, ScheduleNodeExec>(1, 7);
 
     (void)0;
 
-    constraint_graph.add_edge<ScheduleNodeProcessorReady, ScheduleNodeExec>(2, 8);
+    // constraint_graph.add_edge<ScheduleNodeProcessorReady, ScheduleNodeExec>(2, 8);
 
     (void)0;
 
