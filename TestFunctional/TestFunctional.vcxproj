@@ -84,14 +84,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Modifier_MaintainConstantCount.cpp" />
+    <ClCompile Include="Modifier_Replication.cpp" />
     <ClCompile Include="Transform.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Modules\Usagi\Modules\Common\Functional\Functional.vcxproj">
       <Project>{7f66387b-3dc4-419b-905b-e7e71f17f289}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\Targets\DefaultTest\DefaultTest.vcxproj">
-      <Project>{9cfb17f8-cc29-4e3b-8ab6-45ddff2d1a81}</Project>
+    <ProjectReference Include="..\TestECSCommon\TestECSCommon.vcxproj">
+      <Project>{352a83dc-42ac-4f60-b2aa-ddf94b933cfc}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
