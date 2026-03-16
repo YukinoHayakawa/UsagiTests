@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="UnitTest|x64">
+      <Configuration>UnitTest</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <ProjectGuid>{0cdd8882-bc09-4f23-8803-4806a3ac3fdb}</ProjectGuid>
+    <RootNamespace>TestUsagiRuntime</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup>
+    <!-- ConfigurationType MUST be specified BEFORE importing Microsoft.Cpp.props. -->
+    <!-- Otherwise all projects become Application. -->
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='UnitTest'">
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <!-- But include paths must be defined AFTER importing Microsoft.Cpp.props. -->
+  <PropertyGroup>
+    <IncludePath>$(Usagi_IncludePaths);$(IncludePath)</IncludePath>
+    <LibraryPath>$(Usagi_LibraryPaths);$(LibraryPath)</LibraryPath>
+    <ExternalIncludeDirectories>$(ProjectDir);$(ExternalIncludeDirectories)</ExternalIncludeDirectories>
+  </PropertyGroup>
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros">
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Engine\Usagi\Usagi.vcxproj">
+      <Project>{f9061c06-bce6-416b-9aeb-31351810b7ba}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Targets\DefaultPlatform\DefaultPlatform.vcxproj">
+      <Project>{e989bbfc-a4cd-4f94-b15b-ec7b05f80e3f}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Allocators\TestLinearBumpAllocator.cpp" />
+    <ClCompile Include="Allocators\TestBuddyAllocator.cpp" />
+    <ClCompile Include="Allocators\TestTLSFAllocator.cpp" />
+    <ClCompile Include="Allocators\TestBitmapAllocator.cpp" />
+    <ClCompile Include="Allocators\TestHiveAllocator.cpp" />
+    <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
