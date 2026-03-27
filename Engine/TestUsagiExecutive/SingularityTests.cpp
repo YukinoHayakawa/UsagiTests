@@ -3,11 +3,13 @@
  * -----------------------------------------------------------------------------
  * Subjecting the Task Graph Executive and EntityDatabase to extreme boundary
  * conditions: Integer exhaustion, Out-Of-Memory (OOM) allocator exceptions,
- * graph density saturation, and null-mask allocations.
+ * graph density saturation, structural bitmask thrashing, and null-mask
+ * allocations.
  */
 
 #include <iostream>
 #include <new> // For std::bad_alloc
+#include <thread>
 
 #include <gtest/gtest.h>
 
@@ -51,6 +53,26 @@ template <>
 consteval ComponentMask get_component_bit<CompVoidSpawnerToken>()
 {
     return 1ull << 62;
+}
+
+struct CompThrashA
+{
+};
+
+template <>
+consteval ComponentMask get_component_bit<CompThrashA>()
+{
+    return 1ull << 50;
+}
+
+struct CompThrashB
+{
+};
+
+template <>
+consteval ComponentMask get_component_bit<CompThrashB>()
+{
+    return 1ull << 51;
 }
 
 // -----------------------------------------------------------------------------
@@ -106,6 +128,62 @@ struct SysVoidSpawner
             // Queue an entity with a component mask of strictly 0.
             // It exists, but possesses no data footprint.
             db.queue_spawn(0);
+        }
+    }
+};
+
+// --- Savage Structural Thrashing Mocks ---
+
+struct SysSavageAdder
+{
+    // Topologically locks ThrashB while querying ThrashA
+    using EntityQuery = EntityQuery<Read<CompThrashA>, IntentAdd<CompThrashB>>;
+
+    static void update(DatabaseAccess<SysSavageAdder> &db)
+    {
+        auto ents = db.query_entities(build_mask<CompThrashA>());
+        for(auto e : ents)
+        {
+            db.add_component(e, build_mask<CompThrashB>());
+            std::this_thread::yield();
+        }
+    }
+};
+
+struct SysSavageRemover
+{
+    // Topologically locks ThrashA while querying ThrashB
+    using EntityQuery =
+        EntityQuery<Read<CompThrashB>, IntentRemove<CompThrashA>>;
+
+    static void update(DatabaseAccess<SysSavageRemover> &db)
+    {
+        auto ents = db.query_entities(build_mask<CompThrashB>());
+        for(auto e : ents)
+        {
+            db.remove_component(e, build_mask<CompThrashA>());
+            std::this_thread::yield();
+        }
+    }
+};
+
+struct SysSavageQuerySpammer
+{
+    // Continually queries the intersection. Operates lock-free against the
+    // mutators because it only reads the atomic bitmask without locking the
+    // data chunks.
+    using EntityQuery = EntityQuery<
+        Read<CompThrashA, CompThrashB>, AccessPolicy<DataAccessFlags::Previous>
+    >;
+
+    static void update(DatabaseAccess<SysSavageQuerySpammer> &db)
+    {
+        for(int i = 0; i < 50; ++i)
+        {
+            volatile auto ents =
+                db.query_entities(build_mask<CompThrashA, CompThrashB>());
+            (void)ents;
+            std::this_thread::yield();
         }
     }
 };
@@ -202,5 +280,43 @@ TEST_F(UsagiExecutiveSingularityTest, Singularity_NullMaskAllocation_VoidEntity)
     EXPECT_EQ(universal_ents.size(), 1)
         << "Sparse matrix query solver failed to resolve the universal set "
            "mapping for a void entity.";
+}
+
+// --- SAVAGE STRUCTURAL THRASHING PROOFS ---
+
+TEST_F(
+    UsagiExecutiveSingularityTest,
+    Singularity_StructuralThrashing_AtomicMaskIntegrity)
+{
+    // Populates 10,000 entities with random distributions of ThrashA and
+    // ThrashB.
+    for(int i = 0; i < 5'000; ++i)
+        db.create_entity_immediate(build_mask<CompThrashA>());
+    for(int i = 0; i < 5'000; ++i)
+        db.create_entity_immediate(build_mask<CompThrashB>());
+
+    // We flood the Task Graph with 150 conflicting systems.
+    // The DAG sorter will mathematically unroll the WAW collisions due to
+    // IntentAdd mapping to Write locks, but the QuerySpammer will evaluate
+    // lock-free concurrently using the 'Previous' flag. If the
+    // EntityRecord::mask is not strictly atomic with acquire/release barriers,
+    // the read/modify/write collisions will trigger an immediate SIGSEGV or
+    // ThreadSanitizer violation.
+    for(int i = 0; i < 50; ++i)
+    {
+        executive.register_system<SysSavageAdder>("Adder_" + std::to_string(i));
+        executive.register_system<SysSavageRemover>(
+            "Remover_" + std::to_string(i));
+        executive.register_system<SysSavageQuerySpammer>(
+            "QuerySpammer_" + std::to_string(i));
+    }
+
+    EXPECT_NO_THROW({ executive.execute_frame(); });
+
+    // The execution log must reflect exactly 150 completed mathematical
+    // evaluations without a single data race.
+    EXPECT_EQ(executive.get_execution_log().size(), 150)
+        << "The atomic structural matrix shattered under savage multithreaded "
+           "thrashing.";
 }
 } // namespace usagi

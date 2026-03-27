@@ -146,6 +146,33 @@ struct IntentDelete
     static constexpr bool          is_policy = false;
 };
 
+/* Yukino: Structural mutation intents. By setting is_write = true, the
+   topological compiler automatically maps an IntentAdd/Remove<T> as an
+   exclusive Write lock on T. This perfectly prevents data races on the
+   component memory chunks without altering the underlying DAG collision solver.
+ */
+template <typename... Ts>
+struct IntentAdd
+{
+    static constexpr ComponentMask mask      = build_mask<Ts...>();
+    static constexpr bool          is_read   = false;
+    static constexpr bool          is_write  = true;
+    static constexpr bool          is_delete = false;
+    static constexpr bool          is_add    = true;
+    static constexpr bool          is_policy = false;
+};
+
+template <typename... Ts>
+struct IntentRemove
+{
+    static constexpr ComponentMask mask      = build_mask<Ts...>();
+    static constexpr bool          is_read   = false;
+    static constexpr bool          is_write  = true;
+    static constexpr bool          is_delete = false;
+    static constexpr bool          is_remove = true;
+    static constexpr bool          is_policy = false;
+};
+
 template <DataAccessFlags Flags>
 struct AccessPolicy
 {
@@ -206,6 +233,36 @@ consteval ComponentMask extract_delete_mask()
 }
 
 template <typename Query>
+consteval ComponentMask extract_add_mask()
+{
+    ComponentMask m = 0;
+    template for(constexpr auto arg_meta : Query::infos)
+    {
+        using Arg = [:arg_meta:];
+        if constexpr(requires { Arg::is_add; })
+        {
+            if constexpr(Arg::is_add) m |= Arg::mask;
+        }
+    }
+    return m;
+}
+
+template <typename Query>
+consteval ComponentMask extract_remove_mask()
+{
+    ComponentMask m = 0;
+    template for(constexpr auto arg_meta : Query::infos)
+    {
+        using Arg = [:arg_meta:];
+        if constexpr(requires { Arg::is_remove; })
+        {
+            if constexpr(Arg::is_remove) m |= Arg::mask;
+        }
+    }
+    return m;
+}
+
+template <typename Query>
 consteval DataAccessFlags extract_flags()
 {
     DataAccessFlags f = DataAccessFlags::None;
@@ -225,9 +282,25 @@ class EntityDatabase
 {
     struct EntityRecord
     {
-        EntityId      id;
-        ComponentMask mask;
-        bool          alive;
+        EntityId                   id;
+        std::atomic<ComponentMask> mask;
+        bool                       alive;
+
+        EntityRecord(EntityId i, ComponentMask m, bool a)
+            : id(i), mask(m), alive(a)
+        {
+        }
+
+        EntityRecord(const EntityRecord &)            = delete;
+        EntityRecord &operator=(const EntityRecord &) = delete;
+
+        // Required for std::vector reallocation
+        EntityRecord(EntityRecord &&other) noexcept
+            : id(other.id)
+            , mask(other.mask.load(std::memory_order_relaxed))
+            , alive(other.alive)
+        {
+        }
     };
 
     std::vector<EntityRecord> entities;
@@ -259,7 +332,7 @@ public:
         }
 
         EntityId id = next_id++;
-        entities.push_back({ id, initial_mask, true });
+        entities.emplace_back(id, initial_mask, true);
         return id;
     }
 
@@ -270,7 +343,8 @@ public:
             if(rec.id == id)
             {
                 rec.alive = false;
-                rec.mask  = 0; // Obliterate structural footprint
+                // Obliterate structural footprint
+                rec.mask.store(0, std::memory_order_release);
                 return;
             }
         }
@@ -283,11 +357,13 @@ public:
         std::vector<EntityId> results;
         for(const auto &rec : entities)
         {
-            // Shio: A mask of 0 is a mathematical universal set. It matches all
-            // active entities.
+            // Shio: Safe concurrent query against structural mutation via
+            // acquire barrier.
+            ComponentMask current_mask =
+                rec.mask.load(std::memory_order_acquire);
             if(rec.alive &&
                 (required_mask == 0 ||
-                    (rec.mask & required_mask) == required_mask))
+                    (current_mask & required_mask) == required_mask))
             {
                 results.push_back(rec.id);
             }
@@ -299,7 +375,8 @@ public:
     {
         for(const auto &rec : entities)
         {
-            if(rec.id == id && rec.alive) return rec.mask;
+            if(rec.id == id && rec.alive)
+                return rec.mask.load(std::memory_order_acquire);
         }
         return 0;
     }
@@ -310,7 +387,23 @@ public:
     {
         for(auto &rec : entities)
         {
-            if(rec.id == id && rec.alive) rec.mask |= comp_mask;
+            if(rec.id == id && rec.alive)
+            {
+                rec.mask.fetch_or(comp_mask, std::memory_order_release);
+                return;
+            }
+        }
+    }
+
+    void remove_component_immediate(EntityId id, ComponentMask comp_mask)
+    {
+        for(auto &rec : entities)
+        {
+            if(rec.id == id && rec.alive)
+            {
+                rec.mask.fetch_and(~comp_mask, std::memory_order_release);
+                return;
+            }
         }
     }
 
@@ -396,6 +489,30 @@ public:
             "FATAL: System attempted to delete an entity, but IntentDelete was "
             "not declared in EntityQuery.");
         db_ref.destroy_entity_immediate(id);
+    }
+
+    void add_component(EntityId id, ComponentMask mask)
+    {
+        constexpr ComponentMask add_mask =
+            meta_utils::extract_add_mask<Query>();
+        if((mask & add_mask) != mask)
+        {
+            throw std::runtime_error(
+                "FATAL: System attempted to add undeclared component.");
+        }
+        db_ref.add_component_immediate(id, mask);
+    }
+
+    void remove_component(EntityId id, ComponentMask mask)
+    {
+        constexpr ComponentMask remove_mask =
+            meta_utils::extract_remove_mask<Query>();
+        if((mask & remove_mask) != mask)
+        {
+            throw std::runtime_error(
+                "FATAL: System attempted to remove undeclared component.");
+        }
+        db_ref.remove_component_immediate(id, mask);
     }
 };
 } // namespace usagi
