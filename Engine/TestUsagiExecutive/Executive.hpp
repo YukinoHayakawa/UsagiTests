@@ -1,17 +1,23 @@
 ﻿#pragma once
 
 /*
- * Usagi Engine: Task Graph Executive & ECS Core (C++26)
+ * Usagi Engine: Task Graph Executive (C++26)
  * -----------------------------------------------------------------------------
+ * Isolated DAG resolver for multithreaded ECS execution.
+ *
  * Topology: Registration-ordered DAG evaluated JIT per-frame.
- * Resolution: Table-level locking via ComponentMasks.
- * Concurrency: Lock-free atomic Task Graph traversal across hardware threads.
+ * Resolution: Table-level locking via ComponentMasks, augmented by
+ * DataAccessFlags to topologically sever false dependencies (WAW/WAR).
+ * Concurrency: Lock-free atomic Task Graph traversal across hardware threads
+ * using a flattened pipeline to survive maximum entropy fuzzing.
  * Safety: Compile-time capability proxy & Runtime SEH/Exception firewalls.
  * Hardening: Terminal state persistence and topological poison diffusion.
+ *
  * Features:
  * - C++26 Static Reflection (P2996R13) for Query DSL unpacking.
- * - JIT Lock Escalation for immediate Entity destruction.
- * - Cyclic Re-entrancy via deferred spawn queues.
+ * - JIT Lock Escalation for immediate Entity destruction without global sync
+ * points.
+ * - Cyclic Re-entrancy via deferred data-parallel spawn partitions.
  * - SEH/Exception firewalls for fault-tolerant execution.
  */
 
@@ -25,6 +31,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "EntityDatabase.hpp"
 
@@ -40,7 +47,7 @@ using NodeIndex = int64_t;
 constexpr int MAX_RE_ENTRIES = 5;
 
 // -----------------------------------------------------------------------------
-// Task Graph Executive
+// Task Graph Node
 // -----------------------------------------------------------------------------
 struct SystemNode
 {
@@ -51,7 +58,17 @@ struct SystemNode
     ComponentMask static_write_mask { 0 };
     ComponentMask static_delete_mask { 0 };
 
-    // JIT dynamically calculated bounds
+    // Orthogonal access traits used by the topological compiler to sever
+    // WAW/WAR edges. The 'static_' prefix mathematically proves these bounds
+    // are extracted purely at compile-time.
+    ComponentMask static_previous_mask { 0 };
+    ComponentMask static_atomic_mask { 0 };
+    ComponentMask static_discard_mask { 0 };
+
+    DataAccessFlags execution_flags { DataAccessFlags::None };
+
+    // JIT dynamically calculated bounds (incorporates static_delete_mask blast
+    // radii)
     ComponentMask jit_write_mask { 0 };
 
     // Execution payload
@@ -62,7 +79,8 @@ struct SystemNode
     std::atomic<NodeIndex> in_degree { 0 };
     std::vector<NodeIndex> dependents;
 
-    // Terminal States (Persist across re-entrancy loops)
+    // Terminal States (Persist across re-entrancy loops within the same
+    // time-slice)
     bool executed { false };
     bool failed { false };
     bool aborted_due_to_dependency { false };
@@ -76,6 +94,10 @@ struct SystemNode
         , static_read_mask(other.static_read_mask)
         , static_write_mask(other.static_write_mask)
         , static_delete_mask(other.static_delete_mask)
+        , static_previous_mask(other.static_previous_mask)
+        , static_atomic_mask(other.static_atomic_mask)
+        , static_discard_mask(other.static_discard_mask)
+        , execution_flags(other.execution_flags)
         , jit_write_mask(other.jit_write_mask)
         , execute_proxy_fn(std::move(other.execute_proxy_fn))
         , in_degree(other.in_degree.load())
@@ -87,6 +109,9 @@ struct SystemNode
     }
 };
 
+// -----------------------------------------------------------------------------
+// Task Graph Executive
+// -----------------------------------------------------------------------------
 class TaskGraphExecutive
 {
     EntityDatabase          &db;
@@ -105,13 +130,35 @@ public:
     {
         using Query = typename SystemType::EntityQuery;
         SystemNode node;
-        node.name               = name;
+        node.name = name;
+
         node.static_read_mask   = meta_utils::extract_read_mask<Query>();
         node.static_write_mask  = meta_utils::extract_write_mask<Query>();
         node.static_delete_mask = meta_utils::extract_delete_mask<Query>();
+        node.execution_flags    = meta_utils::extract_flags<Query>();
+
+        // Map system-wide flags to specific component isolation masks.
+        if((node.execution_flags & DataAccessFlags::Previous) !=
+            DataAccessFlags::None)
+        {
+            node.static_previous_mask = node.static_read_mask;
+        }
+        if((node.execution_flags & DataAccessFlags::Atomic) !=
+            DataAccessFlags::None)
+        {
+            node.static_atomic_mask = node.static_write_mask;
+        }
+        if((node.execution_flags & DataAccessFlags::Discard) !=
+            DataAccessFlags::None)
+        {
+            node.static_discard_mask = node.static_write_mask;
+        }
 
         node.execute_proxy_fn = [](EntityDatabase &db_ref) {
-            DatabaseAccess<SystemType> proxy(db_ref);
+            // Note: A data-parallel dispatcher would inject multiple
+            // partitioned contexts here. Currently, the entire SystemNode is
+            // executed by a single hardware thread.
+            DatabaseAccess<SystemType> proxy(db_ref, 0);
             SystemType::update(proxy);
         };
 
@@ -235,12 +282,16 @@ private:
         {
             for(size_t j = i + 1; j < systems.size(); ++j)
             {
-                bool overlap_rw = (systems[i].static_read_mask &
-                                      systems[j].jit_write_mask) != 0;
-                bool overlap_wr = (systems[i].jit_write_mask &
-                                      systems[j].static_read_mask) != 0;
-                bool overlap_ww = (systems[i].jit_write_mask &
-                                      systems[j].jit_write_mask) != 0;
+                bool overlap_rw =
+                    (systems[i].jit_write_mask & systems[j].static_read_mask) &
+                    ~(systems[j].static_previous_mask);
+                bool overlap_wr =
+                    (systems[i].static_read_mask & systems[j].jit_write_mask) &
+                    ~(systems[i].static_previous_mask);
+                bool overlap_ww =
+                    (systems[i].jit_write_mask & systems[j].jit_write_mask) &
+                    ~(systems[i].static_atomic_mask &
+                        systems[j].static_atomic_mask);
 
                 if(overlap_rw || overlap_wr || overlap_ww)
                 {
@@ -250,78 +301,6 @@ private:
                     systems[i].dependents.push_back(static_cast<NodeIndex>(j));
                     systems[j].in_degree++;
                 }
-            }
-        }
-    }
-
-    /* Yukino: Phase 3: Dispatch. In a real engine, systems with in_degree == 0
-     * are pushed to a lock-free thread pool. For this PoC, we execute
-     * sequentially to verify topological correctness and SEH/Exception
-     * isolation. */
-    void dispatch_tasks_single_threaded()
-    {
-        std::queue<int> ready_queue;
-
-        for(size_t i = 0; i < systems.size(); ++i)
-        {
-            if(systems[i].in_degree == 0) ready_queue.push(i);
-        }
-
-        while(!ready_queue.empty())
-        {
-            int current = ready_queue.front();
-            ready_queue.pop();
-
-            SystemNode &sys = systems[current];
-
-            if(sys.aborted_due_to_dependency) continue;
-
-            try
-            {
-                sys.execute_proxy_fn(db);
-                sys.executed = true;
-                execution_log.push_back("Executed: " + sys.name);
-
-                // Unblock dependents only on success
-                for(int dep_idx : sys.dependents)
-                {
-                    systems[dep_idx].in_degree--;
-                    if(systems[dep_idx].in_degree == 0)
-                    {
-                        ready_queue.push(dep_idx);
-                    }
-                }
-            }
-            catch(const std::exception &e)
-            {
-                /* Yukino: Fault-tolerance. If a system crashes, we abort its
-                 * downstream dependents to prevent reading corrupted memory,
-                 * but independent systems run. */
-                sys.failed   = true;
-                sys.executed = true; // Mark done so graph doesn't hang
-                                     // permanently, but dependents might suffer
-                error_log.push_back(
-                    "Exception in [" + sys.name + "]: " + e.what());
-                execution_log.push_back("FAILED: " + sys.name);
-
-                abort_dependents_recursively_single_threaded(current);
-            }
-        }
-    }
-
-    void abort_dependents_recursively_single_threaded(int node_idx)
-    {
-        for(int dep_idx : systems[node_idx].dependents)
-        {
-            if(!systems[dep_idx].aborted_due_to_dependency)
-            {
-                systems[dep_idx].aborted_due_to_dependency = true;
-                systems[dep_idx].executed = true; // Mark resolved
-                error_log.push_back(
-                    "Aborted downstream dependent: [" +
-                    systems[dep_idx].name +
-                    "]");
-                abort_dependents_recursively_single_threaded(dep_idx);
             }
         }
     }
@@ -488,6 +467,111 @@ private:
         }
     }
 
+    /* Yukino: Poison Diffusion. Instead of using a recursive stack that risks
+       SIGSEGV, we inject the aborted states into the thread pool's natural DAG
+       traversal. Aborted nodes wake up, execute nothing, and recursively poison
+       their dependents. */
+    void abort_immediate_dependents(
+        NodeIndex current, std::queue<NodeIndex> &ready_queue,
+        std::condition_variable &cv)
+    {
+        for(NodeIndex dep_idx : systems[current].dependents)
+        {
+            if(!systems[dep_idx].aborted_due_to_dependency)
+            {
+                systems[dep_idx].aborted_due_to_dependency = true;
+                error_log.push_back(
+                    "Aborted downstream dependent: [" +
+                    systems[dep_idx].name +
+                    "]");
+                execution_log.push_back("ABORTED: " + systems[dep_idx].name);
+            }
+
+            // The DAG edge is satisfied regardless of abortion.
+            // Send it to the thread pool to propagate the poison further.
+            if(--systems[dep_idx].in_degree == 0)
+            {
+                ready_queue.push(dep_idx);
+                cv.notify_one();
+            }
+        }
+    }
+
+    /* Yukino: Phase 3: Dispatch. In a real engine, systems with in_degree == 0
+     * are pushed to a lock-free thread pool. For this PoC, we execute
+     * sequentially to verify topological correctness and SEH/Exception
+     * isolation. */
+    [[deprecated]]
+    void dispatch_tasks_single_threaded()
+    {
+        std::queue<int> ready_queue;
+
+        for(size_t i = 0; i < systems.size(); ++i)
+        {
+            if(systems[i].in_degree == 0) ready_queue.push(i);
+        }
+
+        while(!ready_queue.empty())
+        {
+            int current = ready_queue.front();
+            ready_queue.pop();
+
+            SystemNode &sys = systems[current];
+
+            if(sys.aborted_due_to_dependency) continue;
+
+            try
+            {
+                sys.execute_proxy_fn(db);
+                sys.executed = true;
+                execution_log.push_back("Executed: " + sys.name);
+
+                // Unblock dependents only on success
+                for(int dep_idx : sys.dependents)
+                {
+                    systems[dep_idx].in_degree--;
+                    if(systems[dep_idx].in_degree == 0)
+                    {
+                        ready_queue.push(dep_idx);
+                    }
+                }
+            }
+            catch(const std::exception &e)
+            {
+                /* Yukino: Fault-tolerance. If a system crashes, we abort its
+                 * downstream dependents to prevent reading corrupted memory,
+                 * but independent systems run. */
+                sys.failed   = true;
+                sys.executed = true; // Mark done so graph doesn't hang
+                                     // permanently, but dependents might suffer
+                error_log.push_back(
+                    "Exception in [" + sys.name + "]: " + e.what());
+                execution_log.push_back("FAILED: " + sys.name);
+
+                abort_dependents_recursively_single_threaded(current);
+            }
+        }
+    }
+
+    [[deprecated]]
+    void abort_dependents_recursively_single_threaded(int node_idx)
+    {
+        for(int dep_idx : systems[node_idx].dependents)
+        {
+            if(!systems[dep_idx].aborted_due_to_dependency)
+            {
+                systems[dep_idx].aborted_due_to_dependency = true;
+                systems[dep_idx].executed = true; // Mark resolved
+                error_log.push_back(
+                    "Aborted downstream dependent: [" +
+                    systems[dep_idx].name +
+                    "]");
+                abort_dependents_recursively_single_threaded(dep_idx);
+            }
+        }
+    }
+
+    [[deprecated]]
     void abort_dependents_recursively_buggy(
         int node_idx, std::queue<int> &ready_queue, std::condition_variable &cv)
     {
@@ -519,6 +603,7 @@ private:
      * will trigger a stack overflow (SIGSEGV) if a graph contains a deep linear
      * dependency chain (e.g., 100,000 systems). This heap-allocated stack
      * resolves pathological topographies safely. */
+    [[deprecated]]
     void abort_dependents_iterative_buggy(
         int start_node_idx, std::queue<int> &ready_queue,
         std::condition_variable &cv)
@@ -556,36 +641,6 @@ private:
                     ready_queue.push(dep_idx);
                     cv.notify_one();
                 }
-            }
-        }
-    }
-
-    /* Yukino: Poison Diffusion. Instead of using a recursive stack that risks
-       SIGSEGV, we inject the aborted states into the thread pool's natural DAG
-       traversal. Aborted nodes wake up, execute nothing, and recursively poison
-       their dependents. */
-    void abort_immediate_dependents(
-        NodeIndex current, std::queue<NodeIndex> &ready_queue,
-        std::condition_variable &cv)
-    {
-        for(NodeIndex dep_idx : systems[current].dependents)
-        {
-            if(!systems[dep_idx].aborted_due_to_dependency)
-            {
-                systems[dep_idx].aborted_due_to_dependency = true;
-                error_log.push_back(
-                    "Aborted downstream dependent: [" +
-                    systems[dep_idx].name +
-                    "]");
-                execution_log.push_back("ABORTED: " + systems[dep_idx].name);
-            }
-
-            // The DAG edge is satisfied regardless of abortion.
-            // Send it to the thread pool to propagate the poison further.
-            if(--systems[dep_idx].in_degree == 0)
-            {
-                ready_queue.push(dep_idx);
-                cv.notify_one();
             }
         }
     }

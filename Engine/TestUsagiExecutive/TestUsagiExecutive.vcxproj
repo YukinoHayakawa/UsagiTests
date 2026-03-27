@@ -43,10 +43,13 @@
   <PropertyGroup Label="UserMacros">
   </PropertyGroup>
   <ItemGroup>
+    <ClCompile Include="DataAccessTests.cpp" />
     <ClCompile Include="PathologicalTests.cpp" />
     <ClCompile Include="ErrorTests.cpp" />
     <ClCompile Include="ParallelFuzzerTests.cpp" />
     <ClCompile Include="NormalTests.cpp" />
+    <ClCompile Include="PathologicalTests2.cpp" />
+    <ClCompile Include="SingularityTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\Targets\DefaultTest\DefaultTest.vcxproj">

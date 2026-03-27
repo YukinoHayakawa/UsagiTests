@@ -27,6 +27,15 @@
     <ClCompile Include="PathologicalTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="DataAccessTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PathologicalTests2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SingularityTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Executive.hpp">

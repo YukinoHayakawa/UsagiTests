@@ -21,3 +21,4 @@
 | **JIT Pre-Pass** | **Dynamic Component Overlap:** Entity spawned as Item, dynamically gains Physics. Deleted as Item. | JIT calculates blast radius to include Physics, dynamically injecting an edge to pause the Physics system. | `JITLockEscalation_DynamicIntersection` |
 | **Graph Topology** | **Empty Task Graph:** Executive `execute_frame` called with 0 registered systems. | NOP. Frame executes in near-zero time without crashing. | `Edge_EmptyGraph_NoCrash` |
 | **Access Violation** | **Undeclared Deletion / Insertion:** System calls `destroy_entity` without declaring `IntentDelete`. | `static_assert` fails compilation. The proxy mathematically isolates the database from rogue logic. | *Proven statically (cannot be GTest'd at runtime).* |
+
