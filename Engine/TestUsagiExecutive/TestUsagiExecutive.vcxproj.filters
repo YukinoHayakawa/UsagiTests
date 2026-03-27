@@ -15,10 +15,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="NormalExecution.cpp">
+    <ClCompile Include="NormalTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="EdgeCases.cpp">
+    <ClCompile Include="ErrorTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

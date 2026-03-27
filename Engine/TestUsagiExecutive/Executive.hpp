@@ -35,6 +35,8 @@ constexpr EntityId INVALID_ENTITY = 0xFFFF'FFFF;
    discrete bitwise operations for the Task Graph's intersection tests. */
 using ComponentMask = uint64_t;
 
+constexpr int MAX_RE_ENTRIES = 5;
+
 template <typename T>
 consteval ComponentMask get_component_bit();
 
@@ -102,8 +104,9 @@ struct IntentDelete
 template <typename... Args>
 struct EntityQuery
 {
-    // Yukino: Using P2996 ^^ operator to reflect type arguments into a meta
-    // info array.
+    /* Yukino: Using P2996 ^^ operator to reflect type arguments into a meta
+     * info array. This array is processed at compile-time to enforce access
+     * boundaries. */
     static constexpr std::array<std::meta::info, sizeof...(Args)> infos = {
         ^^Args...
     };
@@ -239,6 +242,13 @@ public:
         }
         spawn_queue.clear();
     }
+
+    void clear_database()
+    {
+        entities.clear();
+        spawn_queue.clear();
+        next_id = 1;
+    }
 };
 
 // -----------------------------------------------------------------------------
@@ -338,6 +348,8 @@ public:
         systems.push_back(std::move(node));
     }
 
+    void clear_systems() { systems.clear(); }
+
     const std::vector<std::string> &get_execution_log() const
     {
         return execution_log;
@@ -350,8 +362,7 @@ public:
     {
         execution_log.clear();
         error_log.clear();
-        int           re_entry_counter = 0;
-        constexpr int MAX_RE_ENTRIES   = 5;
+        int re_entry_counter = 0;
 
         do
         {
@@ -498,8 +509,8 @@ private:
             catch(const std::exception &e)
             {
                 /* Yukino: Fault-tolerance. If a system crashes, we abort its
-                   downstream dependents to prevent reading corrupted memory,
-                   but independent systems run. */
+                 * downstream dependents to prevent reading corrupted memory,
+                 * but independent systems run. */
                 sys.failed   = true;
                 sys.executed = true; // Mark done so graph doesn't hang
                                      // permanently, but dependents might suffer

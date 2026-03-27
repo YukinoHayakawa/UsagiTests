@@ -43,8 +43,8 @@
   <PropertyGroup Label="UserMacros">
   </PropertyGroup>
   <ItemGroup>
-    <ClCompile Include="EdgeCases.cpp" />
-    <ClCompile Include="NormalExecution.cpp" />
+    <ClCompile Include="ErrorTests.cpp" />
+    <ClCompile Include="NormalTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\Targets\DefaultTest\DefaultTest.vcxproj">
