@@ -43,12 +43,17 @@
   <PropertyGroup Label="UserMacros">
   </PropertyGroup>
   <ItemGroup>
-    <ClCompile Include="Executive.cpp" />
+    <ClCompile Include="EdgeCases.cpp" />
+    <ClCompile Include="NormalExecution.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\Targets\DefaultTest\DefaultTest.vcxproj">
       <Project>{9cfb17f8-cc29-4e3b-8ab6-45ddff2d1a81}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Executive.hpp" />
+    <ClInclude Include="README.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
