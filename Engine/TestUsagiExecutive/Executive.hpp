@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <stdexcept>
 #include <string>
@@ -325,9 +326,13 @@ private:
         }
     }
 
-    /* Yukino: Parallel topological dispatch. The wavefront evaluates across
-     * hardware threads. Safe SEH abortion propagation is locked and
-     * synchronized. */
+    /* Yukino: Phase 3: Parallel Dispatch.
+     * Deeply nested lambdas obscure lock lifetimes and destroy readability.
+     * This implementation strictly flattens the worker into a 3-stage pipeline:
+     * [Acquire -> Execute -> Commit]. This guarantees atomic boundaries and
+     * prevents the thread pool from suffocating under condition variable
+     * deadlocks.
+     */
     void dispatch_tasks()
     {
         unsigned int hw_threads = std::thread::hardware_concurrency();
@@ -336,7 +341,6 @@ private:
         std::mutex              mtx;
         std::condition_variable cv;
 
-        // Shio: Queues and task boundaries now enforce signed 64-bit math.
         std::queue<NodeIndex> ready_queue;
         std::atomic<int64_t>  tasks_completed { 0 };
         const int64_t total_tasks = static_cast<int64_t>(systems.size());
@@ -347,108 +351,124 @@ private:
                 ready_queue.push(static_cast<NodeIndex>(i));
         }
 
-        auto worker = [&]() {
+        struct ExecutionResult
+        {
+            bool        did_execute = false;
+            bool        did_crash   = false;
+            std::string crash_msg;
+        };
+
+        /* Stage 1: Thread-Safe Acquisition
+         * Isolates the std::condition_variable wait state. Threads
+         * mathematically terminate by returning std::nullopt if the global task
+         * counter resolves.
+         */
+        auto try_acquire_task = [&]() -> std::optional<NodeIndex> {
+            std::unique_lock lock(mtx);
+            cv.wait(lock, [&] {
+                return !ready_queue.empty() ||
+                    tasks_completed.load() == total_tasks;
+            });
+
+            if(tasks_completed.load() == total_tasks) return std::nullopt;
+
+            NodeIndex current = ready_queue.front();
+            ready_queue.pop();
+            return current;
+        };
+
+        /* Stage 2: Lock-Free Execution
+         * The SEH firewall encapsulates the payload. Hardware faults or logic
+         * exceptions are caught here. Returning an ExecutionResult struct
+         * guarantees we don't leak scope state or unwind the worker thread on a
+         * crash.
+         */
+        auto execute_node_payload = [&](NodeIndex current) -> ExecutionResult {
+            SystemNode     &sys = systems[current];
+            ExecutionResult res;
+
+            if(!sys.aborted_due_to_dependency && !sys.failed)
+            {
+                try
+                {
+                    sys.execute_proxy_fn(db);
+                    res.did_execute = true;
+                }
+                catch(const std::exception &e)
+                {
+                    res.did_crash = true;
+                    res.crash_msg = e.what();
+                }
+            }
+            return res;
+        };
+
+        /* Stage 3: Atomic State Commit
+         * The critical section. Decrements dependent edges. If a node crashes
+         * or was pre-aborted, it diffuses topological poison to downstream
+         * nodes. Enforces the Torvalds underflow constraint on tasks_completed
+         * before notifying.
+         */
+        auto commit_node_result = [&](NodeIndex              current,
+                                      const ExecutionResult &res) {
+            std::scoped_lock lock(mtx);
+            SystemNode      &sys = systems[current];
+
+            sys.executed = true; // Mark resolved for this topological pass
+
+            if(res.did_execute)
+            {
+                execution_log.push_back("Executed: " + sys.name);
+                for(NodeIndex dep_idx : sys.dependents)
+                {
+                    if(--systems[dep_idx].in_degree == 0)
+                    {
+                        ready_queue.push(dep_idx);
+                        cv.notify_one();
+                    }
+                }
+            }
+            else if(res.did_crash)
+            {
+                sys.failed = true;
+                error_log.push_back(
+                    "Exception in [" + sys.name + "]: " + res.crash_msg);
+                execution_log.push_back("FAILED: " + sys.name);
+                abort_immediate_dependents(current, ready_queue, cv);
+            }
+            else
+            {
+                abort_immediate_dependents(current, ready_queue, cv);
+            }
+
+            int64_t current_completed = tasks_completed.fetch_add(1) + 1;
+
+            // The Torvalds constraint. Mathematically trap any illegal
+            // decrements or compiler modulo wrapping before it deadlocks the
+            // CV.
+            if(current_completed < 0)
+            {
+                throw std::runtime_error(
+                    "FATAL: tasks_completed underflowed. DAG tracking is "
+                    "corrupted.");
+            }
+
+            if(current_completed == total_tasks)
+            {
+                cv.notify_all();
+            }
+        };
+
+        /* The Unrolled Pipeline */
+        auto worker = [&] {
             while(true)
             {
-                NodeIndex current = -1;
-                {
-                    std::unique_lock<std::mutex> lock(mtx);
-                    cv.wait(lock, [&]() {
-                        // Math evaluation on signed boundaries
-                        return !ready_queue.empty() ||
-                            tasks_completed.load() == total_tasks;
-                    });
+                auto maybe_node = try_acquire_task();
+                if(!maybe_node.has_value()) break;
 
-                    if(tasks_completed.load() == total_tasks) return;
-
-                    if(!ready_queue.empty())
-                    {
-                        current = ready_queue.front();
-                        ready_queue.pop();
-                    }
-                }
-
-                if(current != -1)
-                {
-                    SystemNode &sys = systems[current];
-
-                    bool        did_execute = false;
-                    bool        did_crash   = false;
-                    std::string crash_msg;
-
-                    // Shio: Evaluate execution only if the node is
-                    // mathematically alive in this time-slice.
-                    if(!sys.aborted_due_to_dependency && !sys.failed)
-                    {
-                        try
-                        {
-                            sys.execute_proxy_fn(db);
-                            did_execute = true;
-                        }
-                        catch(const std::exception &e)
-                        {
-                            did_crash = true;
-                            crash_msg = e.what();
-                        }
-                    }
-
-                    {
-                        std::lock_guard<std::mutex> lock(mtx);
-                        sys.executed =
-                            true; // Mark resolved for this topological pass
-
-                        if(did_execute)
-                        {
-                            execution_log.push_back("Executed: " + sys.name);
-                            for(NodeIndex dep_idx : sys.dependents)
-                            {
-                                if(--systems[dep_idx].in_degree == 0)
-                                {
-                                    ready_queue.push(dep_idx);
-                                    cv.notify_one();
-                                }
-                            }
-                        }
-                        else if(did_crash)
-                        {
-                            sys.failed = true;
-                            error_log.push_back(
-                                "Exception in [" +
-                                sys.name +
-                                "]: " +
-                                crash_msg);
-                            execution_log.push_back("FAILED: " + sys.name);
-                            abort_immediate_dependents(
-                                current, ready_queue, cv);
-                        }
-                        else
-                        {
-                            // Node was already dead from a prior re-entrancy
-                            // loop. We act as a sink and naturally propagate
-                            // the topological poison to new DAG edges.
-                            abort_immediate_dependents(
-                                current, ready_queue, cv);
-                        }
-
-                        int64_t current_completed =
-                            tasks_completed.fetch_add(1) + 1;
-
-                        // Yukino: The Torvalds constraint. Mathematically trap
-                        // any illegal decrements or compiler modulo wrapping
-                        // before it deadlocks the CV.
-                        if(current_completed < 0)
-                        {
-                            throw std::runtime_error(
-                                "FATAL: tasks_completed underflowed. DAG "
-                                "tracking is corrupted.");
-                        }
-
-                        if(current_completed == total_tasks)
-                        {
-                            cv.notify_all();
-                        }
-                    }
-                }
+                NodeIndex       current = maybe_node.value();
+                ExecutionResult res     = execute_node_payload(current);
+                commit_node_result(current, res);
             }
         };
 
