@@ -54,6 +54,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="EntityDatabase.hpp" />
     <ClInclude Include="Executive.hpp" />
     <ClInclude Include="README.md" />
   </ItemGroup>
