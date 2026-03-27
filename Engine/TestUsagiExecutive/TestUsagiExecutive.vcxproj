@@ -44,6 +44,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ClCompile Include="ErrorTests.cpp" />
+    <ClCompile Include="ParallelFuzzerTests.cpp" />
     <ClCompile Include="NormalTests.cpp" />
   </ItemGroup>
   <ItemGroup>

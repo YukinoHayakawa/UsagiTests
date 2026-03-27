@@ -19,6 +19,7 @@
 #include <queue>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace usagi
@@ -309,12 +310,30 @@ struct SystemNode
     // Execution payload
     std::function<void(EntityDatabase &)> execute_proxy_fn;
 
-    // Topological sort state
-    int              in_degree { 0 };
+    std::atomic<int> in_degree { 0 };
     std::vector<int> dependents;
     bool             executed { false };
     bool             failed { false };
     bool             aborted_due_to_dependency { false };
+
+    SystemNode()                              = default;
+    SystemNode(const SystemNode &)            = delete;
+    SystemNode &operator=(const SystemNode &) = delete;
+
+    SystemNode(SystemNode &&other) noexcept
+        : name(std::move(other.name))
+        , static_read_mask(other.static_read_mask)
+        , static_write_mask(other.static_write_mask)
+        , static_delete_mask(other.static_delete_mask)
+        , jit_write_mask(other.jit_write_mask)
+        , execute_proxy_fn(std::move(other.execute_proxy_fn))
+        , in_degree(other.in_degree.load())
+        , dependents(std::move(other.dependents))
+        , executed(other.executed)
+        , failed(other.failed)
+        , aborted_due_to_dependency(other.aborted_due_to_dependency)
+    {
+    }
 };
 
 class TaskGraphExecutive
@@ -360,6 +379,8 @@ public:
     /* Shio: The pure endomorphism execution cycle. */
     void execute_frame()
     {
+        if(systems.empty()) return;
+
         execution_log.clear();
         error_log.clear();
         int re_entry_counter = 0;
@@ -436,7 +457,7 @@ private:
     {
         for(auto &sys : systems)
         {
-            sys.in_degree = 0;
+            sys.in_degree.store(0);
             sys.dependents.clear();
             sys.executed                  = false;
             sys.failed                    = false;
@@ -472,7 +493,7 @@ private:
      * are pushed to a lock-free thread pool. For this PoC, we execute
      * sequentially to verify topological correctness and SEH/Exception
      * isolation. */
-    void dispatch_tasks()
+    void dispatch_tasks_single_threaded()
     {
         std::queue<int> ready_queue;
 
@@ -518,12 +539,12 @@ private:
                     "Exception in [" + sys.name + "]: " + e.what());
                 execution_log.push_back("FAILED: " + sys.name);
 
-                abort_dependents_recursively(current);
+                abort_dependents_recursively_single_threaded(current);
             }
         }
     }
 
-    void abort_dependents_recursively(int node_idx)
+    void abort_dependents_recursively_single_threaded(int node_idx)
     {
         for(int dep_idx : systems[node_idx].dependents)
         {
@@ -535,7 +556,161 @@ private:
                     "Aborted downstream dependent: [" +
                     systems[dep_idx].name +
                     "]");
-                abort_dependents_recursively(dep_idx);
+                abort_dependents_recursively_single_threaded(dep_idx);
+            }
+        }
+    }
+
+    /* Yukino: Parallel topological dispatch. The wavefront evaluates across
+     * hardware threads. Safe SEH abortion propagation is locked and
+     * synchronized. */
+    void dispatch_tasks()
+    {
+        unsigned int hw_threads = std::thread::hardware_concurrency();
+        if(hw_threads == 0) hw_threads = 4;
+
+        std::mutex              mtx;
+        std::condition_variable cv;
+        std::queue<int>         ready_queue;
+        std::atomic<size_t>     tasks_completed { 0 };
+
+        for(size_t i = 0; i < systems.size(); ++i)
+        {
+            if(systems[i].in_degree.load() == 0) ready_queue.push(i);
+        }
+
+        auto worker = [&]() {
+            while(true)
+            {
+                int current = -1;
+                {
+                    std::unique_lock<std::mutex> lock(mtx);
+                    cv.wait(lock, [&]() {
+                        return !ready_queue.empty() ||
+                            tasks_completed.load() == systems.size();
+                    });
+
+                    if(tasks_completed.load() == systems.size()) return;
+
+                    if(!ready_queue.empty())
+                    {
+                        current = ready_queue.front();
+                        ready_queue.pop();
+                    }
+                }
+
+                if(current != -1)
+                {
+                    SystemNode &sys = systems[current];
+
+                    bool        did_execute = false;
+                    bool        did_crash   = false;
+                    std::string crash_msg;
+
+                    if(!sys.aborted_due_to_dependency)
+                    {
+                        try
+                        {
+                            sys.execute_proxy_fn(db);
+                            sys.executed = true;
+                            did_execute  = true;
+                        }
+                        catch(const std::exception &e)
+                        {
+                            sys.failed   = true;
+                            sys.executed = true;
+                            did_crash    = true;
+                            crash_msg    = e.what();
+                        }
+                    }
+
+                    {
+                        std::lock_guard<std::mutex> lock(mtx);
+                        if(did_execute)
+                        {
+                            execution_log.push_back("Executed: " + sys.name);
+                            for(int dep_idx : sys.dependents)
+                            {
+                                if(--systems[dep_idx].in_degree == 0)
+                                {
+                                    ready_queue.push(dep_idx);
+                                    cv.notify_one();
+                                }
+                            }
+                        }
+                        else if(did_crash)
+                        {
+                            error_log.push_back(
+                                "Exception in [" +
+                                sys.name +
+                                "]: " +
+                                crash_msg);
+                            execution_log.push_back("FAILED: " + sys.name);
+                            abort_dependents_recursively(
+                                current, ready_queue, cv);
+                        }
+                        else
+                        {
+                            sys.executed = true;
+                            for(int dep_idx : sys.dependents)
+                            {
+                                if(--systems[dep_idx].in_degree == 0)
+                                {
+                                    ready_queue.push(dep_idx);
+                                    cv.notify_one();
+                                }
+                            }
+                        }
+
+                        tasks_completed++;
+                        if(tasks_completed.load() == systems.size())
+                        {
+                            cv.notify_all();
+                        }
+                    }
+                }
+            }
+        };
+
+        std::vector<std::thread> threads;
+        for(unsigned int i = 0; i < hw_threads; ++i)
+            threads.emplace_back(worker);
+        for(auto &t : threads)
+            t.join();
+
+        for(const auto &sys : systems)
+        {
+            if(!sys.executed && !sys.aborted_due_to_dependency)
+            {
+                throw std::runtime_error(
+                    "FATAL: Topological deadlock detected in Task Graph.");
+            }
+        }
+    }
+
+    void abort_dependents_recursively(
+        int node_idx, std::queue<int> &ready_queue, std::condition_variable &cv)
+    {
+        for(int dep_idx : systems[node_idx].dependents)
+        {
+            if(!systems[dep_idx].aborted_due_to_dependency)
+            {
+                systems[dep_idx].aborted_due_to_dependency = true;
+                error_log.push_back(
+                    "Aborted downstream dependent: [" +
+                    systems[dep_idx].name +
+                    "]");
+                execution_log.push_back("ABORTED: " + systems[dep_idx].name);
+                abort_dependents_recursively(dep_idx, ready_queue, cv);
+            }
+
+            // Decrement in-degree so the aborted node still flows through the
+            // scheduler logic and increments tasks_completed when processed by
+            // the worker.
+            if(--systems[dep_idx].in_degree == 0)
+            {
+                ready_queue.push(dep_idx);
+                cv.notify_one();
             }
         }
     }
