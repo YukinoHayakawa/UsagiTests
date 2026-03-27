@@ -5,7 +5,7 @@
  * Resolution: Table-level locking via ComponentMasks.
  * Concurrency: Lock-free atomic Task Graph traversal across hardware threads.
  * Safety: Compile-time capability proxy & Runtime SEH/Exception firewalls.
- * Hardening: Iterative DFS abortion propagation to prevent stack overflow.
+ * Hardening: Terminal state persistence and topological poison diffusion.
  * Features:
  * - C++26 Static Reflection (P2996R13) for Query DSL unpacking.
  * - JIT Lock Escalation for immediate Entity destruction.
@@ -40,6 +40,13 @@ constexpr EntityId INVALID_ENTITY = 0xFFFF'FFFF;
    integer. This maps the infinite sparse matrix columns into manageable
    discrete bitwise operations for the Task Graph's intersection tests. */
 using ComponentMask = uint64_t;
+
+/* Shio: Using signed 64-bit integers for graph indices and counters.
+   Unsigned types (size_t) silently wrap on underflow, masking critical
+   scheduler bugs. Signed 64-bit guarantees mathematical trapping in the
+   negative domain and prevents 32-bit overflow in extremely dense topologies.
+ */
+using NodeIndex = int64_t;
 
 constexpr int MAX_RE_ENTRIES = 5;
 
@@ -189,7 +196,7 @@ public:
     {
         for(auto &rec : entities)
         {
-            if(rec.id == id)
+            if(rec.id == id && rec.alive)
             {
                 rec.alive = false;
                 rec.mask  = 0; // Obliterate structural footprint
@@ -319,11 +326,15 @@ struct SystemNode
     // Execution payload
     std::function<void(EntityDatabase &)> execute_proxy_fn;
 
-    std::atomic<int> in_degree { 0 };
-    std::vector<int> dependents;
-    bool             executed { false };
-    bool             failed { false };
-    bool             aborted_due_to_dependency { false };
+    // Yukino: Upgraded to signed 64-bit to prevent silent 32-bit
+    // underflow/overflow.
+    std::atomic<NodeIndex> in_degree { 0 };
+    std::vector<NodeIndex> dependents;
+
+    // Terminal States (Persist across re-entrancy loops)
+    bool executed { false };
+    bool failed { false };
+    bool aborted_due_to_dependency { false };
 
     SystemNode()                              = default;
     SystemNode(const SystemNode &)            = delete;
@@ -393,6 +404,15 @@ public:
         execution_log.clear();
         error_log.clear();
         int re_entry_counter = 0;
+
+        // Yukino: Reset terminal states ONCE at the start of the time slice.
+        // If a system crashes, it remains mathematically dead for all
+        // re-entrancy cycles within this frame.
+        for(auto &sys : systems)
+        {
+            sys.failed                    = false;
+            sys.aborted_due_to_dependency = false;
+        }
 
         do
         {
@@ -468,9 +488,12 @@ private:
         {
             sys.in_degree.store(0);
             sys.dependents.clear();
-            sys.executed                  = false;
-            sys.failed                    = false;
-            sys.aborted_due_to_dependency = false;
+
+            // Shio: Do not resurrect dead nodes.
+            if(!sys.failed && !sys.aborted_due_to_dependency)
+            {
+                sys.executed = false;
+            }
         }
 
         // Implicit DAG generation via registration order guarantees acyclic
@@ -490,8 +513,10 @@ private:
 
                 if(overlap_rw || overlap_wr || overlap_ww)
                 {
+                    // Topological edge injection. Utilizing signed 64-bit
+                    // index.
                     // Conflict detected. System i must finish before System j.
-                    systems[i].dependents.push_back(j);
+                    systems[i].dependents.push_back(static_cast<NodeIndex>(j));
                     systems[j].in_degree++;
                 }
             }
@@ -580,26 +605,31 @@ private:
 
         std::mutex              mtx;
         std::condition_variable cv;
-        std::queue<int>         ready_queue;
-        std::atomic<size_t>     tasks_completed { 0 };
+
+        // Shio: Queues and task boundaries now enforce signed 64-bit math.
+        std::queue<NodeIndex> ready_queue;
+        std::atomic<int64_t>  tasks_completed { 0 };
+        const int64_t total_tasks = static_cast<int64_t>(systems.size());
 
         for(size_t i = 0; i < systems.size(); ++i)
         {
-            if(systems[i].in_degree.load() == 0) ready_queue.push(i);
+            if(systems[i].in_degree.load() == 0)
+                ready_queue.push(static_cast<NodeIndex>(i));
         }
 
         auto worker = [&]() {
             while(true)
             {
-                int current = -1;
+                NodeIndex current = -1;
                 {
                     std::unique_lock<std::mutex> lock(mtx);
                     cv.wait(lock, [&]() {
+                        // Math evaluation on signed boundaries
                         return !ready_queue.empty() ||
-                            tasks_completed.load() == systems.size();
+                            tasks_completed.load() == total_tasks;
                     });
 
-                    if(tasks_completed.load() == systems.size()) return;
+                    if(tasks_completed.load() == total_tasks) return;
 
                     if(!ready_queue.empty())
                     {
@@ -616,29 +646,31 @@ private:
                     bool        did_crash   = false;
                     std::string crash_msg;
 
-                    if(!sys.aborted_due_to_dependency)
+                    // Shio: Evaluate execution only if the node is
+                    // mathematically alive in this time-slice.
+                    if(!sys.aborted_due_to_dependency && !sys.failed)
                     {
                         try
                         {
                             sys.execute_proxy_fn(db);
-                            sys.executed = true;
-                            did_execute  = true;
+                            did_execute = true;
                         }
                         catch(const std::exception &e)
                         {
-                            sys.failed   = true;
-                            sys.executed = true;
-                            did_crash    = true;
-                            crash_msg    = e.what();
+                            did_crash = true;
+                            crash_msg = e.what();
                         }
                     }
 
                     {
                         std::lock_guard<std::mutex> lock(mtx);
+                        sys.executed =
+                            true; // Mark resolved for this topological pass
+
                         if(did_execute)
                         {
                             execution_log.push_back("Executed: " + sys.name);
-                            for(int dep_idx : sys.dependents)
+                            for(NodeIndex dep_idx : sys.dependents)
                             {
                                 if(--systems[dep_idx].in_degree == 0)
                                 {
@@ -649,30 +681,39 @@ private:
                         }
                         else if(did_crash)
                         {
+                            sys.failed = true;
                             error_log.push_back(
                                 "Exception in [" +
                                 sys.name +
                                 "]: " +
                                 crash_msg);
                             execution_log.push_back("FAILED: " + sys.name);
-                            abort_dependents_iterative(
+                            abort_immediate_dependents(
                                 current, ready_queue, cv);
                         }
                         else
                         {
-                            sys.executed = true;
-                            for(int dep_idx : sys.dependents)
-                            {
-                                if(--systems[dep_idx].in_degree == 0)
-                                {
-                                    ready_queue.push(dep_idx);
-                                    cv.notify_one();
-                                }
-                            }
+                            // Node was already dead from a prior re-entrancy
+                            // loop. We act as a sink and naturally propagate
+                            // the topological poison to new DAG edges.
+                            abort_immediate_dependents(
+                                current, ready_queue, cv);
                         }
 
-                        tasks_completed++;
-                        if(tasks_completed.load() == systems.size())
+                        int64_t current_completed =
+                            tasks_completed.fetch_add(1) + 1;
+
+                        // Yukino: The Torvalds constraint. Mathematically trap
+                        // any illegal decrements or compiler modulo wrapping
+                        // before it deadlocks the CV.
+                        if(current_completed < 0)
+                        {
+                            throw std::runtime_error(
+                                "FATAL: tasks_completed underflowed. DAG "
+                                "tracking is corrupted.");
+                        }
+
+                        if(current_completed == total_tasks)
                         {
                             cv.notify_all();
                         }
@@ -697,7 +738,7 @@ private:
         }
     }
 
-    void abort_dependents_recursively(
+    void abort_dependents_recursively_buggy(
         int node_idx, std::queue<int> &ready_queue, std::condition_variable &cv)
     {
         for(int dep_idx : systems[node_idx].dependents)
@@ -710,7 +751,7 @@ private:
                     systems[dep_idx].name +
                     "]");
                 execution_log.push_back("ABORTED: " + systems[dep_idx].name);
-                abort_dependents_recursively(dep_idx, ready_queue, cv);
+                abort_dependents_recursively_buggy(dep_idx, ready_queue, cv);
             }
 
             // Decrement in-degree so the aborted node still flows through the
@@ -728,7 +769,7 @@ private:
      * will trigger a stack overflow (SIGSEGV) if a graph contains a deep linear
      * dependency chain (e.g., 100,000 systems). This heap-allocated stack
      * resolves pathological topographies safely. */
-    void abort_dependents_iterative(
+    void abort_dependents_iterative_buggy(
         int start_node_idx, std::queue<int> &ready_queue,
         std::condition_variable &cv)
     {
@@ -765,6 +806,36 @@ private:
                     ready_queue.push(dep_idx);
                     cv.notify_one();
                 }
+            }
+        }
+    }
+
+    /* Yukino: Poison Diffusion. Instead of using a recursive stack that risks
+       SIGSEGV, we inject the aborted states into the thread pool's natural DAG
+       traversal. Aborted nodes wake up, execute nothing, and recursively poison
+       their dependents. */
+    void abort_immediate_dependents(
+        NodeIndex current, std::queue<NodeIndex> &ready_queue,
+        std::condition_variable &cv)
+    {
+        for(NodeIndex dep_idx : systems[current].dependents)
+        {
+            if(!systems[dep_idx].aborted_due_to_dependency)
+            {
+                systems[dep_idx].aborted_due_to_dependency = true;
+                error_log.push_back(
+                    "Aborted downstream dependent: [" +
+                    systems[dep_idx].name +
+                    "]");
+                execution_log.push_back("ABORTED: " + systems[dep_idx].name);
+            }
+
+            // The DAG edge is satisfied regardless of abortion.
+            // Send it to the thread pool to propagate the poison further.
+            if(--systems[dep_idx].in_degree == 0)
+            {
+                ready_queue.push(dep_idx);
+                cv.notify_one();
             }
         }
     }
