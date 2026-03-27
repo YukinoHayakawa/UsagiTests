@@ -1,6 +1,9 @@
-﻿/* * Usagi Engine: Task Graph Executive Proof-of-Concept
- * * Topology: Directed Acyclic Graph (DAG) evaluated JIT per-frame.
+﻿/*
+ * Usagi Engine: Task Graph Executive & ECS Core (C++26)
+ * -----------------------------------------------------------------------------
+ * Topology: Registration-ordered DAG evaluated JIT per-frame.
  * Resolution: Table-level locking via ComponentMasks.
+ * Safety: Compile-time capability proxy & Runtime SEH/Exception firewalls.
  * Features:
  * - C++26 Static Reflection (P2996R13) for Query DSL unpacking.
  * - JIT Lock Escalation for immediate Entity destruction.
@@ -8,16 +11,15 @@
  * - SEH/Exception firewalls for fault-tolerant execution.
  */
 
+#pragma once
+
 #include <cstdint>
 #include <functional>
-#include <iostream>
-#include <meta> // C++26 P2996
+#include <meta> // C++26 P2996R13
 #include <queue>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include <gtest/gtest.h>
 
 namespace usagi
 {
@@ -58,70 +60,12 @@ struct FixedString
     }
 };
 
-// Component Definitions & Bit Mappings
-struct ComponentPlayer
-{
-    FixedString<32> name;
-};
-
-template <>
-consteval ComponentMask get_component_bit<ComponentPlayer>()
-{
-    return 1ull << 0;
-}
-
-struct ComponentItem
-{
-    uint32_t item_id;
-};
-
-template <>
-consteval ComponentMask get_component_bit<ComponentItem>()
-{
-    return 1ull << 1;
-}
-
-struct ComponentPhysics
-{
-    float velocity;
-};
-
-template <>
-consteval ComponentMask get_component_bit<ComponentPhysics>()
-{
-    return 1ull << 2;
-}
-
-struct ComponentInventory
-{
-    uint32_t capacity;
-};
-
-template <>
-consteval ComponentMask get_component_bit<ComponentInventory>()
-{
-    return 1ull << 3;
-}
-
-/* Yukino: A transient request component. Systems that trigger re-entrancy
-   must consume these to prevent infinite topological loops. */
-struct ComponentRayCastRequest
-{
-    float distance;
-};
-
-template <>
-consteval ComponentMask get_component_bit<ComponentRayCastRequest>()
-{
-    return 1ull << 4;
-}
+template <typename T>
+consteval ComponentMask get_component_bit();
 
 // -----------------------------------------------------------------------------
 // Declarative Query DSL (C++26)
 // -----------------------------------------------------------------------------
-
-/* Yukino: We use P2996 reflection to unpack variadic templates into bitmasks at
- * compile-time. */
 template <typename... Ts>
 consteval ComponentMask build_mask()
 {
@@ -158,6 +102,8 @@ struct IntentDelete
 template <typename... Args>
 struct EntityQuery
 {
+    // Yukino: Using P2996 ^^ operator to reflect type arguments into a meta
+    // info array.
     static constexpr std::array<std::meta::info, sizeof...(Args)> infos = {
         ^^Args...
     };
@@ -296,9 +242,48 @@ public:
 };
 
 // -----------------------------------------------------------------------------
+// Compile-Time Capability Proxy (DatabaseAccess)
+// -----------------------------------------------------------------------------
+/* Shio: This proxy acts as a mathematical firewall. It prevents Systems from
+   executing structural changes they did not explicitly request in EntityQuery.
+ */
+template <typename SystemType>
+class DatabaseAccess
+{
+    EntityDatabase &db_ref;
+    using Query = typename SystemType::EntityQuery;
+
+public:
+    explicit DatabaseAccess(EntityDatabase &db)
+        : db_ref(db)
+    {
+    }
+
+    std::vector<EntityId> query_entities(ComponentMask mask) const
+    {
+        return db_ref.query_entities(mask);
+    }
+
+    void queue_spawn(ComponentMask initial_mask)
+    {
+        db_ref.queue_spawn(initial_mask);
+    }
+
+    void destroy_entity(EntityId id)
+    {
+        constexpr ComponentMask delete_mask =
+            meta_utils::extract_delete_mask<Query>();
+        static_assert(
+            delete_mask != 0,
+            "FATAL: System attempted to delete an entity, but IntentDelete was "
+            "not declared in EntityQuery.");
+        db_ref.destroy_entity_immediate(id);
+    }
+};
+
+// -----------------------------------------------------------------------------
 // Task Graph Executive
 // -----------------------------------------------------------------------------
-
 struct SystemNode
 {
     std::string name;
@@ -312,13 +297,14 @@ struct SystemNode
     ComponentMask jit_write_mask { 0 };
 
     // Execution payload
-    std::function<void(EntityDatabase &)> update_fn;
+    std::function<void(EntityDatabase &)> execute_proxy_fn;
 
     // Topological sort state
     int              in_degree { 0 };
     std::vector<int> dependents;
     bool             executed { false };
     bool             failed { false };
+    bool             aborted_due_to_dependency { false };
 };
 
 class TaskGraphExecutive
@@ -344,8 +330,9 @@ public:
         node.static_write_mask  = meta_utils::extract_write_mask<Query>();
         node.static_delete_mask = meta_utils::extract_delete_mask<Query>();
 
-        node.update_fn = [](EntityDatabase &db_ref) {
-            SystemType::update(db_ref);
+        node.execute_proxy_fn = [](EntityDatabase &db_ref) {
+            DatabaseAccess<SystemType> proxy(db_ref);
+            SystemType::update(proxy);
         };
 
         systems.push_back(std::move(node));
@@ -391,8 +378,8 @@ public:
     }
 
 private:
-    /* Yukino: Phase 1: The Blast Radius calculation.
-       This solves the intersection hazard dynamically without global locks. */
+    /* Yukino: Phase 1: The Blast Radius calculation. This solves the
+     * intersection hazard dynamically without global locks. */
     void execute_jit_pre_pass()
     {
         for(auto &sys : systems)
@@ -431,19 +418,22 @@ private:
         }
     }
 
-    /* Shio: Phase 2: Topological sorting based on JIT locks.
-       If System A and System B do not overlap, no edge is created,
-       meaning they can mathematically execute in parallel. */
+    /* Shio: Phase 2: Topological sorting based on JIT locks. If System A and
+     * System B do not overlap, no edge is created, meaning they can
+     * mathematically execute in parallel. */
     void build_topological_graph()
     {
         for(auto &sys : systems)
         {
             sys.in_degree = 0;
             sys.dependents.clear();
-            sys.executed = false;
-            sys.failed   = false;
+            sys.executed                  = false;
+            sys.failed                    = false;
+            sys.aborted_due_to_dependency = false;
         }
 
+        // Implicit DAG generation via registration order guarantees acyclic
+        // topology
         // Establish happens-before edges based on registration order to resolve
         // conflicts
         for(size_t i = 0; i < systems.size(); ++i)
@@ -468,9 +458,9 @@ private:
     }
 
     /* Yukino: Phase 3: Dispatch. In a real engine, systems with in_degree == 0
-       are pushed to a lock-free thread pool. For this PoC, we execute
-       sequentially to verify topological correctness and SEH/Exception
-       isolation. */
+     * are pushed to a lock-free thread pool. For this PoC, we execute
+     * sequentially to verify topological correctness and SEH/Exception
+     * isolation. */
     void dispatch_tasks()
     {
         std::queue<int> ready_queue;
@@ -487,243 +477,56 @@ private:
 
             SystemNode &sys = systems[current];
 
+            if(sys.aborted_due_to_dependency) continue;
+
             try
             {
-                sys.update_fn(db);
+                sys.execute_proxy_fn(db);
                 sys.executed = true;
                 execution_log.push_back("Executed: " + sys.name);
+
+                // Unblock dependents only on success
+                for(int dep_idx : sys.dependents)
+                {
+                    systems[dep_idx].in_degree--;
+                    if(systems[dep_idx].in_degree == 0)
+                    {
+                        ready_queue.push(dep_idx);
+                    }
+                }
             }
             catch(const std::exception &e)
             {
-                // Fault-tolerant execution. System crashed, but engine
-                // survives.
+                /* Yukino: Fault-tolerance. If a system crashes, we abort its
+                   downstream dependents to prevent reading corrupted memory,
+                   but independent systems run. */
                 sys.failed   = true;
                 sys.executed = true; // Mark done so graph doesn't hang
                                      // permanently, but dependents might suffer
                 error_log.push_back(
-                    "SEH/Exception in [" + sys.name + "]: " + e.what());
+                    "Exception in [" + sys.name + "]: " + e.what());
                 execution_log.push_back("FAILED: " + sys.name);
-            }
 
-            // Unblock dependents
-            for(int dep_idx : sys.dependents)
+                abort_dependents_recursively(current);
+            }
+        }
+    }
+
+    void abort_dependents_recursively(int node_idx)
+    {
+        for(int dep_idx : systems[node_idx].dependents)
+        {
+            if(!systems[dep_idx].aborted_due_to_dependency)
             {
-                systems[dep_idx].in_degree--;
-                if(systems[dep_idx].in_degree == 0)
-                {
-                    ready_queue.push(dep_idx);
-                }
-            }
-        }
-
-        // Cycle detection check
-        for(const auto &sys : systems)
-        {
-            if(!sys.executed)
-            {
-                throw std::runtime_error(
-                    "FATAL: Topological deadlock detected in Task Graph.");
+                systems[dep_idx].aborted_due_to_dependency = true;
+                systems[dep_idx].executed = true; // Mark resolved
+                error_log.push_back(
+                    "Aborted downstream dependent: [" +
+                    systems[dep_idx].name +
+                    "]");
+                abort_dependents_recursively(dep_idx);
             }
         }
     }
 };
-
-// -----------------------------------------------------------------------------
-// Concrete System Implementations (For Testing)
-// -----------------------------------------------------------------------------
-
-struct SystemPhysicsCompute
-{
-    using EntityQuery =
-        EntityQuery<Read<ComponentPhysics>, Write<ComponentPhysics>>;
-
-    static void update(EntityDatabase &db)
-    {
-        // Logic: Move objects. No structural changes.
-    }
-};
-
-struct SystemDeleteEmptyItems
-{
-    // Declares intent to delete an entity that has ComponentItem
-    using EntityQuery =
-        EntityQuery<Read<ComponentItem>, IntentDelete<ComponentItem>>;
-
-    static void update(EntityDatabase &db)
-    {
-        auto items = db.query_entities(get_component_bit<ComponentItem>());
-        for(EntityId id : items)
-        {
-            db.destroy_entity_immediate(id);
-        }
-    }
-};
-
-/* Shio: The system triggering re-entrancy must consume its triggering condition
-   (the RayCastRequest) to prevent the Task Graph from looping infinitely. */
-struct SystemRayTracerSpawner
-{
-    using EntityQuery = EntityQuery<
-        Read<ComponentRayCastRequest>, IntentDelete<ComponentRayCastRequest>
-    >;
-
-    static void update(EntityDatabase &db)
-    {
-        auto requests =
-            db.query_entities(get_component_bit<ComponentRayCastRequest>());
-        for(EntityId id : requests)
-        {
-            // Spawns a transient hit-marker entity
-            db.queue_spawn(get_component_bit<ComponentPhysics>());
-            // Consume the request token to satisfy Petri net bounds
-            db.destroy_entity_immediate(id);
-        }
-    }
-};
-
-struct SystemCrashingService
-{
-    using EntityQuery = EntityQuery<Read<ComponentInventory>>;
-
-    static void update(EntityDatabase &db)
-    {
-        throw std::runtime_error("Vulkan Device Lost!");
-    }
-};
-
-// -----------------------------------------------------------------------------
-// Mathematical Proofs via Google Test
-// -----------------------------------------------------------------------------
-
-class UsagiExecutiveTest : public ::testing::Test
-{
-protected:
-    EntityDatabase     db;
-    TaskGraphExecutive executive { db };
-};
-
-// Test 1: Static DAG Execution (Parallelism achievable)
-TEST_F(UsagiExecutiveTest, StaticTaskGraphExecution)
-{
-    db.create_entity_immediate(get_component_bit<ComponentPhysics>());
-
-    executive.register_system<SystemPhysicsCompute>("PhysicsCompute");
-    executive.execute_frame();
-
-    const auto &log = executive.get_execution_log();
-    ASSERT_EQ(log.size(), 1);
-    EXPECT_EQ(log[0], "Executed: PhysicsCompute");
-}
-
-// Test 2: Just-In-Time Lock Escalation
-TEST_F(UsagiExecutiveTest, JITLockEscalationIsolatesPhysics)
-{
-    // Create an entity that is BOTH an Item and a Physics object.
-    // This perfectly models the ComponentGroup intersection hazard.
-    ComponentMask dual_mask = get_component_bit<ComponentItem>() |
-        get_component_bit<ComponentPhysics>();
-    db.create_entity_immediate(dual_mask);
-
-    executive.register_system<SystemDeleteEmptyItems>("DeleteItems");
-    executive.register_system<SystemPhysicsCompute>("PhysicsCompute");
-
-    // The Executive must execute DeleteItems, dynamically realize that deleting
-    // the item ALSO deletes a Physics component, and serialize PhysicsCompute
-    // AFTER DeleteItems.
-    executive.execute_frame();
-
-    const auto &log = executive.get_execution_log();
-
-    // Check that the JIT escalation occurred
-    bool escalation_detected = false;
-    for(const auto &msg : log)
-    {
-        if(msg.find("JIT Escalation [DeleteItems]") != std::string::npos)
-        {
-            escalation_detected = true;
-        }
-    }
-    EXPECT_TRUE(escalation_detected)
-        << "Executive failed to detect structural intersection hazard.";
-
-    // Order must be strictly DeleteItems THEN PhysicsCompute due to topological
-    // edge
-    int del_idx = -1, phys_idx = -1;
-    for(size_t i = 0; i < log.size(); ++i)
-    {
-        if(log[i] == "Executed: DeleteItems") del_idx = i;
-        if(log[i] == "Executed: PhysicsCompute") phys_idx = i;
-    }
-
-    EXPECT_NE(del_idx, -1);
-    EXPECT_NE(phys_idx, -1);
-    EXPECT_LT(del_idx, phys_idx) << "Topological sort failed: Physics ran "
-                                    "before or parallel to its destruction.";
-
-    // Verify component is actually dead
-    auto physics_ents =
-        db.query_entities(get_component_bit<ComponentPhysics>());
-    EXPECT_TRUE(physics_ents.empty());
-}
-
-// Test 3: Cyclic Re-entrancy via Deferred Queues
-TEST_F(UsagiExecutiveTest, CyclicReEntrancyIsResolved)
-{
-    // Initialize the transient request rather than a persistent component
-    db.create_entity_immediate(get_component_bit<ComponentRayCastRequest>());
-
-    executive.register_system<SystemRayTracerSpawner>("RaySpawner");
-    executive.register_system<SystemPhysicsCompute>(
-        "PhysicsCompute"); // Should process the spawned entity
-
-    executive.execute_frame();
-
-    const auto &log = executive.get_execution_log();
-
-    bool re_entry_detected = false;
-    for(const auto &msg : log)
-    {
-        if(msg == "--- Executive: Re-entrancy cycle triggered ---")
-        {
-            re_entry_detected = true;
-        }
-    }
-
-    EXPECT_TRUE(re_entry_detected)
-        << "Executive failed to evaluate the spawn queue and re-enter.";
-
-    // Check if the spawned entity now exists
-    auto physics_ents =
-        db.query_entities(get_component_bit<ComponentPhysics>());
-    EXPECT_EQ(physics_ents.size(), 1)
-        << "Transient entity was not committed to the database.";
-}
-
-// Test 4: Fault Tolerance (SEH/Exception Firewall)
-TEST_F(UsagiExecutiveTest, ExceptionFirewallPreventsEngineCrash)
-{
-    db.create_entity_immediate(get_component_bit<ComponentInventory>());
-
-    executive.register_system<SystemCrashingService>("CrashingSystem");
-    executive.register_system<SystemPhysicsCompute>(
-        "SafePhysics"); // Unrelated system
-
-    // This should NOT throw an exception up to GTest. The Executive must catch
-    // it.
-    EXPECT_NO_THROW({ executive.execute_frame(); });
-
-    const auto &errors = executive.get_error_log();
-    ASSERT_EQ(errors.size(), 1);
-    EXPECT_TRUE(errors[0].find("Vulkan Device Lost!") != std::string::npos);
-
-    const auto &exec_log         = executive.get_execution_log();
-    bool        safe_physics_ran = false;
-    for(const auto &msg : exec_log)
-    {
-        if(msg == "Executed: SafePhysics") safe_physics_ran = true;
-    }
-
-    EXPECT_TRUE(safe_physics_ran) << "Engine orchestrator halted entire graph "
-                                     "due to isolated system failure.";
-}
 } // namespace usagi
