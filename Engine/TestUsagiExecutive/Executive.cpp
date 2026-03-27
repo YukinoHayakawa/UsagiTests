@@ -103,6 +103,19 @@ consteval ComponentMask get_component_bit<ComponentInventory>()
     return 1ull << 3;
 }
 
+/* Yukino: A transient request component. Systems that trigger re-entrancy
+   must consume these to prevent infinite topological loops. */
+struct ComponentRayCastRequest
+{
+    float distance;
+};
+
+template <>
+consteval ComponentMask get_component_bit<ComponentRayCastRequest>()
+{
+    return 1ull << 4;
+}
+
 // -----------------------------------------------------------------------------
 // Declarative Query DSL (C++26)
 // -----------------------------------------------------------------------------
@@ -546,14 +559,25 @@ struct SystemDeleteEmptyItems
     }
 };
 
+/* Shio: The system triggering re-entrancy must consume its triggering condition
+   (the RayCastRequest) to prevent the Task Graph from looping infinitely. */
 struct SystemRayTracerSpawner
 {
-    using EntityQuery = EntityQuery<Read<ComponentPlayer>>;
+    using EntityQuery = EntityQuery<
+        Read<ComponentRayCastRequest>, IntentDelete<ComponentRayCastRequest>
+    >;
 
     static void update(EntityDatabase &db)
     {
-        // Spawns a transient hit-marker entity
-        db.queue_spawn(get_component_bit<ComponentPhysics>());
+        auto requests =
+            db.query_entities(get_component_bit<ComponentRayCastRequest>());
+        for(EntityId id : requests)
+        {
+            // Spawns a transient hit-marker entity
+            db.queue_spawn(get_component_bit<ComponentPhysics>());
+            // Consume the request token to satisfy Petri net bounds
+            db.destroy_entity_immediate(id);
+        }
     }
 };
 
@@ -645,7 +669,8 @@ TEST_F(UsagiExecutiveTest, JITLockEscalationIsolatesPhysics)
 // Test 3: Cyclic Re-entrancy via Deferred Queues
 TEST_F(UsagiExecutiveTest, CyclicReEntrancyIsResolved)
 {
-    db.create_entity_immediate(get_component_bit<ComponentPlayer>());
+    // Initialize the transient request rather than a persistent component
+    db.create_entity_immediate(get_component_bit<ComponentRayCastRequest>());
 
     executive.register_system<SystemRayTracerSpawner>("RaySpawner");
     executive.register_system<SystemPhysicsCompute>(
