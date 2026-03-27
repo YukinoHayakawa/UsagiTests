@@ -43,6 +43,7 @@
   <PropertyGroup Label="UserMacros">
   </PropertyGroup>
   <ItemGroup>
+    <ClCompile Include="PathologicalTests.cpp" />
     <ClCompile Include="ErrorTests.cpp" />
     <ClCompile Include="ParallelFuzzerTests.cpp" />
     <ClCompile Include="NormalTests.cpp" />

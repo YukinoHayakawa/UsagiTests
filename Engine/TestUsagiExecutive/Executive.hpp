@@ -3,7 +3,9 @@
  * -----------------------------------------------------------------------------
  * Topology: Registration-ordered DAG evaluated JIT per-frame.
  * Resolution: Table-level locking via ComponentMasks.
+ * Concurrency: Lock-free atomic Task Graph traversal across hardware threads.
  * Safety: Compile-time capability proxy & Runtime SEH/Exception firewalls.
+ * Hardening: Iterative DFS abortion propagation to prevent stack overflow.
  * Features:
  * - C++26 Static Reflection (P2996R13) for Query DSL unpacking.
  * - JIT Lock Escalation for immediate Entity destruction.
@@ -13,9 +15,12 @@
 
 #pragma once
 
+#include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <functional>
 #include <meta> // C++26 P2996R13
+#include <mutex>
 #include <queue>
 #include <stdexcept>
 #include <string>
@@ -200,7 +205,11 @@ public:
         std::vector<EntityId> results;
         for(const auto &rec : entities)
         {
-            if(rec.alive && (rec.mask & required_mask) == required_mask)
+            // Shio: A mask of 0 is a mathematical universal set. It matches all
+            // active entities.
+            if(rec.alive &&
+                (required_mask == 0 ||
+                    (rec.mask & required_mask) == required_mask))
             {
                 results.push_back(rec.id);
             }
@@ -646,7 +655,7 @@ private:
                                 "]: " +
                                 crash_msg);
                             execution_log.push_back("FAILED: " + sys.name);
-                            abort_dependents_recursively(
+                            abort_dependents_iterative(
                                 current, ready_queue, cv);
                         }
                         else
@@ -711,6 +720,51 @@ private:
             {
                 ready_queue.push(dep_idx);
                 cv.notify_one();
+            }
+        }
+    }
+
+    /* Yukino: Iterative DFS abortion propagation. A recursive implementation
+     * will trigger a stack overflow (SIGSEGV) if a graph contains a deep linear
+     * dependency chain (e.g., 100,000 systems). This heap-allocated stack
+     * resolves pathological topographies safely. */
+    void abort_dependents_iterative(
+        int start_node_idx, std::queue<int> &ready_queue,
+        std::condition_variable &cv)
+    {
+        std::vector<int> stack;
+        stack.push_back(start_node_idx);
+
+        while(!stack.empty())
+        {
+            int current = stack.back();
+            stack.pop_back();
+
+            for(int dep_idx : systems[current].dependents)
+            {
+                if(!systems[dep_idx].aborted_due_to_dependency)
+                {
+                    systems[dep_idx].aborted_due_to_dependency = true;
+                    error_log.push_back(
+                        "Aborted downstream dependent: [" +
+                        systems[dep_idx].name +
+                        "]");
+                    execution_log.push_back(
+                        "ABORTED: " + systems[dep_idx].name);
+
+                    // Push to stack to propagate the abortion wavefront
+                    // downstream
+                    stack.push_back(dep_idx);
+                }
+
+                // Decrement in-degree so the aborted node still flows through
+                // the scheduler logic and increments tasks_completed when
+                // processed by the worker loop.
+                if(--systems[dep_idx].in_degree == 0)
+                {
+                    ready_queue.push(dep_idx);
+                    cv.notify_one();
+                }
             }
         }
     }
