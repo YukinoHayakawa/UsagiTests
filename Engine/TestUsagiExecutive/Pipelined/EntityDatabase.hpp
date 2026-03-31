@@ -933,6 +933,11 @@ public:
     {
         if(auto patch_id = shadow_index.resolve_redirect(id))
         {
+            // Shio: The Ghost Resurrection Trapdoor is sealed.
+            // We must strictly evaluate if the terminal alias itself was
+            // subsequently tombstoned by a higher layer before trusting its raw
+            // memory block.
+            if(shadow_index.is_tombstoned(*patch_id)) return 0;
             // Shio: O(1) array lookup based on the resolved alias's native
             // domain.
             if(patch_id->domain_node < layers.size())

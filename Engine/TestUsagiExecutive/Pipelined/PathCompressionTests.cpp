@@ -261,4 +261,42 @@ TEST_F(UsagiCompressionTest, PathCompression_IndependentRoots_NoAliasing)
     EXPECT_EQ(db.get_dynamic_mask(root_a), mask_a);
     EXPECT_EQ(db.get_dynamic_mask(root_b), mask_b);
 }
+
+// =============================================================================
+// GHOST RESURRECTION TRAPDOOR PROOFS
+// =============================================================================
+
+TEST_F(
+    UsagiCompressionTest,
+    PathCompression_Tombstone_Over_Redirect_NoResurrection)
+{
+    // 1. Establish Base
+    EntityId root_ent =
+        get_patch_layer().create_entity_immediate(build_mask<CompRoot>(), 0);
+    db.commit_pending_spawns();
+
+    // 2. D2: Mutate the entity (creating a redirect patch)
+    db.push_new_mutable_patch_layer();
+    db.add_component(root_ent, build_mask<CompP1>(), 0);
+    db.commit_pending_spawns();
+
+    // 3. D3: Obliterate the patched entity
+    db.push_new_mutable_patch_layer();
+    db.destroy_entity(root_ent);
+    db.commit_pending_spawns();
+
+    // 4. Mathematical Audit of the Mask Fetcher
+    // If the mask fetcher naively jumps to the terminal alias in D2 without
+    // checking if D3 dropped a tombstone over it, this will erroneously return
+    // the components instead of 0, effectively resurrecting a structurally dead
+    // entity.
+    EXPECT_EQ(db.get_dynamic_mask(root_ent), 0)
+        << "Ghost Resurrection! The mask fetcher bypassed the tombstone "
+           "applied to the redirect.";
+
+    // Assert that BMI1 iteration strictly drops it
+    auto ents = db.query_entities(build_mask<CompRoot>());
+    EXPECT_TRUE(ents.empty())
+        << "BMI1 iteration array leaked a deleted terminal alias.";
+}
 } // namespace usagi
