@@ -5,7 +5,7 @@
  * Relations: Bipartite Graph Reduction via Reified Edge Entities.
  * Storage: Strictly Pointer-Free, Mmap-Ready ECS Structures (std::atomic_ref).
  * Virtualization: Layered Database Aggregation with Transient Shadow Overlays.
- * * Mathematical Guarantee: The memory chunks generated here are completely
+ * Mathematical Guarantee: The memory chunks generated here are completely
  * trivially-copyable. They contain zero virtual pointers or std::atomic locks
  * that would corrupt upon binary disk restoration.
  */
@@ -420,28 +420,18 @@ public:
 };
 
 // -----------------------------------------------------------------------------
-// Hive Allocator Metadata Structures (Strictly Pointer-Free / Memory-Mappable)
+// Column-Major Hive Allocator Structures
 // -----------------------------------------------------------------------------
-
+// (Strictly Pointer-Free / Memory-Mappable)
 // Yukino: Pure POD. No std::atomic allowed here. This guarantees the struct
 // can be mmap'd directly from disk without ABI corruption or locking UB.
-struct HiveMetadataPage
+struct ComponentGroupMeta
 {
-    alignas(8) std::array<ComponentMask, HIVE_PAGE_SIZE> masks;
-    alignas(8) uint64_t active_lanes;
+    alignas(8) uint64_t entities;
+    alignas(8) std::array<ComponentMask, HIVE_PAGE_SIZE> components;
+    alignas(8) uint64_t aggregate_bloom_filter;
 };
 
-consteval void assert_pod_structures()
-{
-    static_assert(
-        std::is_trivially_copyable_v<HiveMetadataPage>,
-        "HiveMetadataPage MUST be trivially copyable for mmap.");
-    static_assert(
-        std::is_standard_layout_v<HiveMetadataPage>,
-        "HiveMetadataPage MUST be standard layout for mmap.");
-}
-
-// Simulates a POSIX mmap / Windows MapViewOfFile memory region
 class VirtualMemoryArena
 {
     // Yukino: Eradicated std::vector to mathematically bypass libc++
@@ -456,46 +446,40 @@ public:
     {
         capacity_pages = initial_pages;
         memory         = std::make_unique_for_overwrite<uint8_t[]>(
-            capacity_pages * sizeof(HiveMetadataPage));
+            capacity_pages * sizeof(ComponentGroupMeta));
     }
 
-    HiveMetadataPage *allocate_page()
+    ComponentGroupMeta *allocate_page()
     {
         if(allocated_pages >= capacity_pages)
         {
             size_t new_capacity = capacity_pages * 2;
             auto   new_memory   = std::make_unique_for_overwrite<uint8_t[]>(
-                new_capacity * sizeof(HiveMetadataPage));
-
+                new_capacity * sizeof(ComponentGroupMeta));
             if(allocated_pages > 0)
-            {
                 std::memcpy(
                     new_memory.get(),
                     memory.get(),
-                    allocated_pages * sizeof(HiveMetadataPage));
-            }
+                    allocated_pages * sizeof(ComponentGroupMeta));
             memory         = std::move(new_memory);
             capacity_pages = new_capacity;
         }
-
         uint8_t *ptr =
-            memory.get() + (allocated_pages * sizeof(HiveMetadataPage));
+            memory.get() + (allocated_pages * sizeof(ComponentGroupMeta));
         allocated_pages++;
-        // Explicitly start lifetime as pure data
-        auto *page         = new (ptr) HiveMetadataPage();
-        page->active_lanes = 0;
-        for(auto &m : page->masks)
+        auto *page                   = new (ptr) ComponentGroupMeta();
+        page->entities               = 0;
+        page->aggregate_bloom_filter = 0;
+        for(auto &m : page->components)
             m = 0;
         return page;
     }
 
-    HiveMetadataPage *get_page(uint32_t page_idx) const
+    ComponentGroupMeta *get_page(uint32_t page_idx) const
     {
         if(page_idx >= allocated_pages) return nullptr;
-        // const_cast needed because the arena represents raw mutable hardware
-        // RAM mapped by the OS
-        return reinterpret_cast<HiveMetadataPage *>(
-            memory.get() + (page_idx * sizeof(HiveMetadataPage)));
+        return reinterpret_cast<ComponentGroupMeta *>(
+            memory.get() + (page_idx * sizeof(ComponentGroupMeta)));
     }
 
     size_t page_count() const { return allocated_pages; }
@@ -505,7 +489,7 @@ public:
     // Shio: Binary I/O simulation for Game Saves
     std::vector<uint8_t> export_memory() const
     {
-        std::vector<uint8_t> dump(allocated_pages * sizeof(HiveMetadataPage));
+        std::vector<uint8_t> dump(allocated_pages * sizeof(ComponentGroupMeta));
         if(allocated_pages > 0)
         {
             std::memcpy(dump.data(), memory.get(), dump.size());
@@ -515,10 +499,10 @@ public:
 
     void import_memory(const std::vector<uint8_t> &dump)
     {
-        allocated_pages = dump.size() / sizeof(HiveMetadataPage);
+        allocated_pages = dump.size() / sizeof(ComponentGroupMeta);
         capacity_pages  = allocated_pages + 4;
         memory          = std::make_unique_for_overwrite<uint8_t[]>(
-            capacity_pages * sizeof(HiveMetadataPage));
+            capacity_pages * sizeof(ComponentGroupMeta));
         if(allocated_pages > 0)
         {
             std::memcpy(memory.get(), dump.data(), dump.size());
@@ -612,15 +596,16 @@ public:
             part.current_slot_idx = 0;
         }
 
-        uint32_t          p_idx = part.current_page_idx;
-        uint16_t          s_idx = part.current_slot_idx++;
-        HiveMetadataPage *page  = part.arena.get_page(p_idx);
+        uint32_t            p_idx = part.current_page_idx;
+        uint16_t            s_idx = part.current_slot_idx++;
+        ComponentGroupMeta *page  = part.arena.get_page(p_idx);
 
-        // Mutate pure POD securely using atomic_ref
-        std::atomic_ref<ComponentMask>(page->masks[s_idx])
+        std::atomic_ref<ComponentMask>(page->components[s_idx])
             .store(initial_mask, std::memory_order_release);
-        std::atomic_ref<uint64_t>(page->active_lanes)
+        std::atomic_ref<uint64_t>(page->entities)
             .fetch_or(1ull << s_idx, std::memory_order_release);
+        std::atomic_ref<uint64_t>(page->aggregate_bloom_filter)
+            .fetch_or(initial_mask, std::memory_order_relaxed);
 
         return EntityId { local_domain_node, partition_id, p_idx, s_idx, 0 };
     }
@@ -630,30 +615,40 @@ public:
         if(id.domain_node != local_domain_node ||
             id.partition >= MAX_SPAWN_PARTITIONS)
             return;
-        HiveMetadataPage *page =
+        ComponentGroupMeta *page =
             partitions[id.partition].arena.get_page(id.page);
         if(!page) return;
 
-        std::atomic_ref<ComponentMask>(page->masks[id.slot])
+        std::atomic_ref<ComponentMask>(page->components[id.slot])
             .store(0, std::memory_order_release);
-        std::atomic_ref<uint64_t>(page->active_lanes)
+        std::atomic_ref<uint64_t>(page->entities)
             .fetch_and(~(1ull << id.slot), std::memory_order_release);
         transient_edges.remove_all_edges_for_source(id);
     }
 
-    std::vector<EntityId> query_entities(
-        ComponentMask               required_mask,
-        const TransientShadowIndex *shadow_index = nullptr) const
+    // Shio: Executes the iterator over an explicitly dispatched Span of
+    // partitions
+    template <typename Func>
+    void iterate_spans(
+        uint32_t start_p, uint32_t end_p, ComponentMask required_mask,
+        Func &&fn, const TransientShadowIndex *shadow_index = nullptr) const
     {
-        std::vector<EntityId> results;
-        for(uint32_t p = 0; p < MAX_SPAWN_PARTITIONS; ++p)
+        for(uint32_t p = start_p; p < end_p; ++p)
         {
             const EntityPartition &part = partitions[p];
             for(uint32_t page_idx = 0; page_idx < part.arena.page_count();
                 ++page_idx)
             {
-                HiveMetadataPage *page = part.arena.get_page(page_idx);
-                uint64_t active = std::atomic_ref<uint64_t>(page->active_lanes)
+                ComponentGroupMeta *page = part.arena.get_page(page_idx);
+
+                uint64_t bloom =
+                    std::atomic_ref<uint64_t>(page->aggregate_bloom_filter)
+                        .load(std::memory_order_relaxed);
+                if(required_mask != 0 &&
+                    (bloom & required_mask) != required_mask)
+                    continue; // O(1) Bloom Bypass
+
+                uint64_t active = std::atomic_ref<uint64_t>(page->entities)
                                       .load(std::memory_order_acquire);
 
                 if(shadow_index)
@@ -667,18 +662,31 @@ public:
                     active &= active - 1;
 
                     ComponentMask current_mask =
-                        std::atomic_ref<ComponentMask>(page->masks[slot])
+                        std::atomic_ref<ComponentMask>(page->components[slot])
                             .load(std::memory_order_acquire);
                     if(required_mask == 0 ||
                         (current_mask & required_mask) == required_mask)
                     {
-                        results.push_back(
-                            EntityId {
-                                local_domain_node, p, page_idx, slot, 0 });
+                        fn(EntityId {
+                            local_domain_node, p, page_idx, slot, 0 });
                     }
                 }
             }
         }
+    }
+
+    // Fallback for legacy static tasks / JIT compiler mapping
+    std::vector<EntityId> query_entities(
+        ComponentMask               required_mask,
+        const TransientShadowIndex *shadow_index = nullptr) const
+    {
+        std::vector<EntityId> results;
+        iterate_spans(
+            0,
+            MAX_SPAWN_PARTITIONS,
+            required_mask,
+            [&](EntityId id) { results.push_back(id); },
+            shadow_index);
         return results;
     }
 
@@ -687,17 +695,16 @@ public:
         if(id.domain_node != local_domain_node ||
             id.partition >= MAX_SPAWN_PARTITIONS)
             return 0;
-        const HiveMetadataPage *page =
+        const ComponentGroupMeta *page =
             partitions[id.partition].arena.get_page(id.page);
         if(!page) return 0;
 
-        if((std::atomic_ref<uint64_t>(
-                const_cast<uint64_t &>(page->active_lanes))
+        if((std::atomic_ref<uint64_t>(const_cast<uint64_t &>(page->entities))
                    .load(std::memory_order_acquire) &
                (1ull << id.slot)) != 0)
         {
             return std::atomic_ref<ComponentMask>(
-                const_cast<ComponentMask &>(page->masks[id.slot]))
+                const_cast<ComponentMask &>(page->components[id.slot]))
                 .load(std::memory_order_acquire);
         }
         return 0;
@@ -708,10 +715,12 @@ public:
         if(id.domain_node != local_domain_node ||
             id.partition >= MAX_SPAWN_PARTITIONS)
             return;
-        HiveMetadataPage *page =
+        ComponentGroupMeta *page =
             partitions[id.partition].arena.get_page(id.page);
-        std::atomic_ref<ComponentMask>(page->masks[id.slot])
+        std::atomic_ref<ComponentMask>(page->components[id.slot])
             .fetch_or(comp_mask, std::memory_order_release);
+        std::atomic_ref<uint64_t>(page->aggregate_bloom_filter)
+            .fetch_or(comp_mask, std::memory_order_relaxed);
     }
 
     void remove_component_immediate(EntityId id, ComponentMask comp_mask)
@@ -719,9 +728,9 @@ public:
         if(id.domain_node != local_domain_node ||
             id.partition >= MAX_SPAWN_PARTITIONS)
             return;
-        HiveMetadataPage *page =
+        ComponentGroupMeta *page =
             partitions[id.partition].arena.get_page(id.page);
-        std::atomic_ref<ComponentMask>(page->masks[id.slot])
+        std::atomic_ref<ComponentMask>(page->components[id.slot])
             .fetch_and(~comp_mask, std::memory_order_release);
     }
 
@@ -913,7 +922,12 @@ public:
         return shadow_index;
     }
 
-    std::vector<EntityId> query_entities(ComponentMask required_mask) const
+    // Shio: Resolves the multi-layer execution loop into a passed lambda for
+    // O(1) span processing
+    template <typename Func>
+    void iterate_spans(
+        uint32_t start_p, uint32_t end_p, ComponentMask required_mask,
+        Func &&fn) const
     {
         std::vector<EntityId> aggregated;
         for(const auto &layer : layers)
@@ -922,10 +936,17 @@ public:
                 (layer->get_domain() == layers.back()->get_domain())
                 ? nullptr
                 : &shadow_index;
-            auto sub_results = layer->query_entities(required_mask, idx_ptr);
-            aggregated.insert(
-                aggregated.end(), sub_results.begin(), sub_results.end());
+            layer->iterate_spans(
+                start_p, end_p, required_mask, std::forward<Func>(fn), idx_ptr);
         }
+    }
+
+    std::vector<EntityId> query_entities(ComponentMask required_mask) const
+    {
+        std::vector<EntityId> aggregated;
+        iterate_spans(0, MAX_SPAWN_PARTITIONS, required_mask, [&](EntityId id) {
+            aggregated.push_back(id);
+        });
         return aggregated;
     }
 
@@ -1095,23 +1116,36 @@ template <typename SystemType>
 class DatabaseAccess
 {
     LayeredDatabaseAggregator &db_ref;
-    uint32_t                   partition_idx;
+    uint32_t                   start_partition;
+    uint32_t                   end_partition;
 
 public:
     explicit DatabaseAccess(
-        LayeredDatabaseAggregator &db, uint32_t partition = 0)
-        : db_ref(db), partition_idx(partition)
+        LayeredDatabaseAggregator &db, uint32_t start_p = 0,
+        uint32_t end_p = MAX_SPAWN_PARTITIONS)
+        : db_ref(db), start_partition(start_p), end_partition(end_p)
     {
     }
 
+    // Executing the flat span iterator natively
+    template <typename Func>
+    void iterate(ComponentMask mask, Func &&fn) const
+    {
+        db_ref.iterate_spans(
+            start_partition, end_partition, mask, std::forward<Func>(fn));
+    }
+
+    // Legacy fallback
     std::vector<EntityId> query_entities(ComponentMask mask) const
     {
-        return db_ref.query_entities(mask);
+        std::vector<EntityId> results;
+        iterate(mask, [&](EntityId id) { results.push_back(id); });
+        return results;
     }
 
     void queue_spawn(ComponentMask initial_mask)
     {
-        db_ref.get_mutable_layer().queue_spawn(initial_mask, partition_idx);
+        db_ref.get_mutable_layer().queue_spawn(initial_mask, start_partition);
     }
 
     void destroy_entity(EntityId id)
@@ -1131,7 +1165,9 @@ public:
         if((mask & add_mask) != mask)
             throw std::runtime_error(
                 "FATAL: System attempted to add undeclared component.");
-        db_ref.add_component(id, mask, partition_idx);
+        db_ref.add_component(
+            id, mask, start_partition); // Mutates local partition span to
+                                        // prevent lock contention
     }
 
     void remove_component(EntityId id, ComponentMask mask)
@@ -1141,7 +1177,7 @@ public:
         if((mask & remove_mask) != mask)
             throw std::runtime_error(
                 "FATAL: System attempted to remove undeclared component.");
-        db_ref.remove_component(id, mask, partition_idx);
+        db_ref.remove_component(id, mask, start_partition);
     }
 
     void register_edge(

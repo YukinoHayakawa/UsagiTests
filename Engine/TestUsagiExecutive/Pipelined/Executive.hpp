@@ -3,9 +3,10 @@
  * -----------------------------------------------------------------------------
  * Topology: Continuous Pipelined DAG (G_inf) evaluated JIT per-frame.
  * Resolution: Table-level locking via ComponentMasks & DataAccessFlags.
- * Concurrency: Persistent condition_variable Worker Pool.
+ * Concurrency: Persistent condition_variable Worker Pool with O(1) Span
+ * Dispatch.
  * Hardening: Terminal state persistence and topological poison diffusion.
- * * Mathematical Guarantee: This orchestrator calculates the absolute blast
+ * Mathematical Guarantee: This orchestrator calculates the absolute blast
  * radius of the Bipartite Graph closures before allowing any thread to touch
  * the matrices.
  */
@@ -28,7 +29,7 @@
 namespace usagi
 {
 // -----------------------------------------------------------------------------
-// Persistent Pipelined Task Worker Pool
+// Persistent Pipelined Task Worker Pool & Span Dispatch
 // -----------------------------------------------------------------------------
 struct SystemNode
 {
@@ -43,10 +44,17 @@ struct SystemNode
     // Dynamically projected upon DAG generation
     ComponentMask jit_write_mask { 0 };
 
-    std::function<void(LayeredDatabaseAggregator &)> execute_proxy_fn;
+    // The execution proxy now accepts a partition span [start, end)
+    std::function<void(LayeredDatabaseAggregator &, uint32_t, uint32_t)>
+        execute_span_fn;
 
     std::atomic<int64_t>                     in_degree { 0 };
     std::vector<std::shared_ptr<SystemNode>> dependents;
+
+    // Span Dispatch Counters
+    std::atomic<uint32_t> next_partition { 0 };
+    std::atomic<uint32_t> completed_workers { 0 };
+    uint32_t              active_worker_count { 0 };
 
     bool executed { false };
     bool failed { false };
@@ -55,11 +63,11 @@ struct SystemNode
 
 class TaskWorkerPool
 {
-    std::vector<std::thread>                workers;
-    std::queue<std::shared_ptr<SystemNode>> ready_queue;
-    std::mutex                              queue_mutex;
-    std::condition_variable                 cv;
-    std::atomic<bool>                       terminate_flag { false };
+    std::vector<std::thread>                 workers;
+    std::vector<std::shared_ptr<SystemNode>> active_jobs;
+    std::mutex                               queue_mutex;
+    std::condition_variable                  cv;
+    std::atomic<bool>                        terminate_flag { false };
 
     void worker_loop()
     {
@@ -69,56 +77,93 @@ class TaskWorkerPool
             {
                 std::unique_lock<std::mutex> lock(queue_mutex);
                 cv.wait(lock, [this]() {
-                    return !ready_queue.empty() ||
+                    return !active_jobs.empty() ||
                         terminate_flag.load(std::memory_order_relaxed);
                 });
-
                 if(terminate_flag.load(std::memory_order_relaxed) &&
-                    ready_queue.empty())
+                    active_jobs.empty())
                     return;
 
-                task = ready_queue.front();
-                ready_queue.pop();
+                // Scan for available work spans in active jobs
+                for(auto &job : active_jobs)
+                {
+                    if(!job->aborted_due_to_dependency &&
+                        !job->failed &&
+                        job->next_partition.load(std::memory_order_relaxed) <
+                            MAX_SPAWN_PARTITIONS)
+                    {
+                        task = job;
+                        break;
+                    }
+                }
             }
 
-            if(!task->aborted_due_to_dependency && !task->failed)
+            if(task)
             {
-                try
+                // O(1) Lock-free Span Stealing. Grab chunks of 16 partitions.
+                constexpr uint32_t CHUNK_SIZE = 16;
+                uint32_t           start_p    = task->next_partition.fetch_add(
+                    CHUNK_SIZE, std::memory_order_acq_rel);
+
+                if(start_p < MAX_SPAWN_PARTITIONS)
                 {
-                    task->execute_proxy_fn(*db_ptr);
+                    uint32_t end_p =
+                        std::min(start_p + CHUNK_SIZE, MAX_SPAWN_PARTITIONS);
+
+                    try
+                    {
+                        task->execute_span_fn(*db_ptr, start_p, end_p);
+                    }
+                    catch(...)
+                    {
+                        task->failed = true;
+                    }
                 }
-                catch(...)
+
+                // If this thread finished the final chunk of the job
+                if(start_p + CHUNK_SIZE >= MAX_SPAWN_PARTITIONS)
                 {
-                    task->failed = true;
+                    if(task->completed_workers.fetch_add(
+                           1, std::memory_order_acq_rel) ==
+                        task->active_worker_count - 1)
+                    {
+                        task->executed = true;
+
+                        // Lock-free downstream poison diffusion
+                        auto resolve_dependents = [&](auto &node) {
+                            for(auto &dep : node->dependents)
+                            {
+                                if(node->failed ||
+                                    node->aborted_due_to_dependency)
+                                    dep->aborted_due_to_dependency = true;
+                                if(dep->in_degree.fetch_sub(
+                                       1, std::memory_order_acq_rel) == 1)
+                                    push_task(dep);
+                            }
+                        };
+                        resolve_dependents(task);
+
+                        std::lock_guard<std::mutex> lock(queue_mutex);
+                        std::erase(active_jobs, task);
+                    }
                 }
             }
-            task->executed = true;
-
-            // Lock-free downstream poison diffusion
-            auto resolve_dependents = [&](auto &node) {
-                for(auto &dep : node->dependents)
-                {
-                    if(node->failed || node->aborted_due_to_dependency)
-                    {
-                        dep->aborted_due_to_dependency = true;
-                    }
-                    if(dep->in_degree.fetch_sub(1, std::memory_order_acq_rel) ==
-                        1)
-                    {
-                        push_task(dep);
-                    }
-                }
-            };
-            resolve_dependents(task);
+            else
+            {
+                // Yield if woke up but partitions exhausted
+                std::this_thread::yield();
+            }
         }
     }
 
 public:
-    LayeredDatabaseAggregator *db_ptr = nullptr;
+    LayeredDatabaseAggregator *db_ptr       = nullptr;
+    uint32_t                   thread_count = 0;
 
     void start(LayeredDatabaseAggregator &db, uint32_t hw_threads)
     {
-        db_ptr = &db;
+        db_ptr       = &db;
+        thread_count = hw_threads;
         for(uint32_t i = 0; i < hw_threads; ++i)
         {
             workers.emplace_back(&TaskWorkerPool::worker_loop, this);
@@ -137,9 +182,13 @@ public:
 
     void push_task(std::shared_ptr<SystemNode> task)
     {
+        task->next_partition.store(0, std::memory_order_relaxed);
+        task->completed_workers.store(0, std::memory_order_relaxed);
+        task->active_worker_count = thread_count;
+
         std::lock_guard<std::mutex> lock(queue_mutex);
-        ready_queue.push(task);
-        cv.notify_one();
+        active_jobs.push_back(task);
+        cv.notify_all(); // Wake the swarm
     }
 
     ~TaskWorkerPool() { stop(); }
@@ -154,9 +203,9 @@ class TaskGraphExecutive
     TaskWorkerPool             worker_pool;
 
     std::vector<std::shared_ptr<SystemNode>> current_frame_systems;
-    std::vector<std::shared_ptr<SystemNode>>
-                          previous_frame_systems; // The G_inf sliding window
-    std::atomic<uint64_t> current_frame { 0 };
+    // The G_inf sliding window
+    std::vector<std::shared_ptr<SystemNode>> previous_frame_systems;
+    std::atomic<uint64_t>                    current_frame { 0 };
 
     std::vector<std::string> execution_log;
     std::vector<std::string> error_log;
@@ -168,10 +217,17 @@ class TaskGraphExecutive
     {
         if(sys->static_delete_mask == 0) return;
 
-        ComponentMask target_signature = sys->static_read_mask |
-            sys->static_write_mask |
-            sys->static_delete_mask;
-        std::vector<EntityId> condemned = db.query_entities(target_signature);
+        // This is still executed linearly by the DAG compiler.
+        // In a fully optimized engine, this closure mapping is cached or
+        // incrementally updated.
+        std::vector<EntityId> condemned;
+        db.get_mutable_layer().iterate_spans(
+            0,
+            MAX_SPAWN_PARTITIONS,
+            sys->static_read_mask |
+                sys->static_write_mask |
+                sys->static_delete_mask,
+            [&](EntityId id) { condemned.push_back(id); });
 
         std::queue<EntityId> frontier;
         for(EntityId e : condemned)
@@ -198,7 +254,8 @@ public:
         : db(database)
     {
         uint32_t hw_threads = std::thread::hardware_concurrency();
-        worker_pool.start(db, hw_threads == 0 ? 4 : hw_threads);
+        if(hw_threads == 0) hw_threads = 4;
+        worker_pool.start(db, hw_threads);
     }
 
     template <typename SystemType>
@@ -214,9 +271,12 @@ public:
         node->static_delete_mask = meta_utils::extract_delete_mask<Query>();
         node->execution_flags    = meta_utils::extract_flags<Query>();
 
-        node->execute_proxy_fn = [name, this](
-                                     LayeredDatabaseAggregator &db_ref) {
-            DatabaseAccess<SystemType> proxy(db_ref, 0);
+        // The Proxy is now injected with the span boundaries to avoid
+        // db.query_entities
+        node->execute_span_fn = [](LayeredDatabaseAggregator &db_ref,
+                                    uint32_t                  start_p,
+                                    uint32_t                  end_p) {
+            DatabaseAccess<SystemType> proxy(db_ref, start_p, end_p);
             SystemType::update(proxy);
 
             // Optional: Thread-safe debug logging could be injected here,
