@@ -45,6 +45,7 @@
   <ItemGroup>
     <ClCompile Include="Pipelined\CoreTests.cpp" />
     <ClCompile Include="Pipelined\IntegrityTests.cpp" />
+    <ClCompile Include="Pipelined\PathCompressionTests.cpp" />
     <ClCompile Include="Pipelined\VirtualEdgeTests.cpp" />
     <ClCompile Include="Simple\DataAccessTests.cpp" />
     <ClCompile Include="Simple\PathologicalTests.cpp" />

@@ -318,15 +318,17 @@ public:
     void clear() { adjacency_list.clear(); }
 };
 
+/* Shio: O(1) Disjoint-Set Path Compression applied to the Virtual Page Table.
+   This mathematically eradicates N-Layer linked-list traversal overhead. */
 class TransientShadowIndex
 {
     // The Virtual Page Table Overlay
     std::unordered_map<uint64_t, uint64_t> shadowed_lanes;
-    std::unordered_map<EntityId, EntityId> redirects;
 
-    // Shio: The reverse alias mapping. Resolves any physical patch coordinate
-    // back to its immutable logical root in the base layer.
-    std::unordered_map<EntityId, EntityId> reverse_redirects;
+    // O(1) Flattened Caches
+    std::unordered_map<EntityId, EntityId>              terminal_alias_map;
+    std::unordered_map<EntityId, EntityId>              logical_root_map;
+    std::unordered_map<EntityId, std::vector<EntityId>> alias_chains;
 
     constexpr uint64_t build_page_key(const EntityId &id) const
     {
@@ -345,8 +347,21 @@ public:
     void add_redirect(EntityId base_entity, EntityId patch_entity)
     {
         add_tombstone(base_entity);
-        redirects[base_entity]          = patch_entity;
-        reverse_redirects[patch_entity] = base_entity;
+
+        // 1. Resolve absolute logical root in O(1) via the cache.
+        EntityId logical_root = get_logical_root(base_entity);
+
+        // 2. Overwrite the O(1) terminal alias pointer, compressing the path.
+        terminal_alias_map[logical_root] = patch_entity;
+
+        // 3. Map the newly spawned patch directly back to the absolute root.
+        logical_root_map[patch_entity] = logical_root;
+
+        // 4. Pre-cache the contiguous identity chain for instant Bipartite Edge
+        // aggregation.
+        auto &chain = alias_chains[logical_root];
+        if(chain.empty()) chain.push_back(logical_root);
+        chain.push_back(patch_entity);
     }
 
     uint64_t get_shadow_mask(
@@ -372,51 +387,35 @@ public:
         return false;
     }
 
-    // Yukino: Recursive reverse lookup. If D2 patched D1, and D1 patched D0,
-    // passing D2 recursively resolves to D0.
-    EntityId get_logical_root(EntityId id) const
+    // Yukino: Strict O(1) lookup. No recursive or while loop needed.
+    EntityId get_logical_root(EntityId any_alias) const
     {
-        auto it = reverse_redirects.find(id);
-        if(it != reverse_redirects.end()) return get_logical_root(it->second);
-        return id;
+        auto it = logical_root_map.find(any_alias);
+        return it != logical_root_map.end() ? it->second : any_alias;
     }
 
-    std::optional<EntityId> resolve_redirect(EntityId base_entity) const
+    std::optional<EntityId> resolve_redirect(EntityId any_alias) const
     {
-        auto it = redirects.find(base_entity);
-        if(it == redirects.end()) return std::nullopt;
-
-        // Yukino: Multi-hop resolution for N-Layer patch stacking (e.g., Base
-        // -> DLC1 -> DLC2 -> SaveGame) Traverses the shadow redirects until the
-        // terminal active patch is found.
-        EntityId current = it->second;
-        while((it = redirects.find(current)) != redirects.end())
-        {
-            current = it->second;
-        }
-        return current;
+        EntityId root = get_logical_root(any_alias);
+        auto     it   = terminal_alias_map.find(root);
+        if(it != terminal_alias_map.end()) return it->second;
+        return std::nullopt;
     }
 
-    // Shio: Retrieves the entire alias chain [Base, Patch1, Patch2] for
-    // topological unions
-    std::vector<EntityId> get_redirect_chain(EntityId base_entity) const
+    std::vector<EntityId> get_redirect_chain(EntityId any_alias) const
     {
-        std::vector<EntityId> chain;
-        chain.push_back(base_entity);
-        auto it = redirects.find(base_entity);
-        while(it != redirects.end())
-        {
-            chain.push_back(it->second);
-            it = redirects.find(it->second);
-        }
-        return chain;
+        EntityId root = get_logical_root(any_alias);
+        auto     it   = alias_chains.find(root);
+        if(it != alias_chains.end()) return it->second;
+        return { root }; // Just the root itself if no chain exists
     }
 
     void clear()
     {
         shadowed_lanes.clear();
-        redirects.clear();
-        reverse_redirects.clear();
+        terminal_alias_map.clear();
+        logical_root_map.clear();
+        alias_chains.clear();
     }
 };
 
@@ -880,6 +879,10 @@ public:
         for(auto &layer : layers)
             layer->transient_edges.clear();
 
+        // Shio: Sequential top-down scan naturally enforces O(1) path
+        // compression. As we process newer layers, the add_redirect function
+        // instantly resolves intermediate aliases to their logical root,
+        // collapsing the history.
         for(auto &layer : layers)
         {
             for(const auto &[edge_id, source_id] : layer->payloads.edge_sources)
