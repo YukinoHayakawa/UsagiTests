@@ -19,7 +19,7 @@
 
 #include "Executive.hpp"
 
-namespace usagi
+namespace usagi::poc::executive_1
 {
 // -----------------------------------------------------------------------------
 // Fuzzer Entropy Domain: Components & Bit Mappings
@@ -447,4 +447,4 @@ TEST_F(UsagiExecutiveParallelFuzzer, Fuzz_ChaosException_ThreadSafety)
                                           "exception abortion across threads.";
     }
 }
-} // namespace usagi
+} // namespace usagi::poc::executive_1

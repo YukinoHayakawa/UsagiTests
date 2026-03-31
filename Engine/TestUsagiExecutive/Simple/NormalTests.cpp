@@ -11,7 +11,7 @@
 
 #include "Executive.hpp"
 
-namespace usagi
+namespace usagi::poc::executive_1
 {
 // -----------------------------------------------------------------------------
 // Component Definitions & Bit Mappings
@@ -279,4 +279,4 @@ TEST_F(
     EXPECT_EQ(spawned_particles.size(), 1)
         << "Structural deferred spawn failed to commit.";
 }
-} // namespace usagi
+} // namespace usagi::poc::executive_1

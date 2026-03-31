@@ -15,7 +15,7 @@
 
 #include "Executive.hpp"
 
-namespace usagi
+namespace usagi::poc::executive_1
 {
 // -----------------------------------------------------------------------------
 // Component Definitions & Bit Mappings
@@ -266,4 +266,4 @@ TEST_F(UsagiExecutiveDataAccessTest, DataAccess_WAR_RAW_SeveredByPrevious)
     // without throwing an underflow error.
     EXPECT_EQ(g_temporal[e].frame_n, 10 + NUM_NODES);
 }
-} // namespace usagi
+} // namespace usagi::poc::executive_1

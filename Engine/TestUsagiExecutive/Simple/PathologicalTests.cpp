@@ -14,7 +14,7 @@
 
 #include "Executive.hpp"
 
-namespace usagi
+namespace usagi::poc::executive_1
 {
 // -----------------------------------------------------------------------------
 // Component Definitions & Bit Mappings
@@ -245,4 +245,4 @@ TEST_F(
     EXPECT_EQ(spawned_ents.size(), 1) << "Executive dropped deferred mutations "
                                          "generated before an exception fault.";
 }
-} // namespace usagi
+} // namespace usagi::poc::executive_1

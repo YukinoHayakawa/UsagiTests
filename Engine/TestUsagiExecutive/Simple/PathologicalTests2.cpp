@@ -17,9 +17,8 @@
 
 #include "Executive.hpp"
 
-namespace usagi
+namespace usagi::poc::executive_1
 {
-
 // -----------------------------------------------------------------------------
 // Component Definitions & Bit Mappings
 // -----------------------------------------------------------------------------
@@ -480,4 +479,4 @@ TEST_F(
         << "Amdahl's Nightmare: Entity ID assignment diverged due to thread "
            "scheduling. Network sync destroyed.";
 }
-} // namespace usagi
+} // namespace usagi::poc::executive_1

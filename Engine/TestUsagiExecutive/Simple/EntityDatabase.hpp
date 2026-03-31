@@ -6,7 +6,7 @@
 #include <meta> // C++26 P2996R13
 #include <vector>
 
-namespace usagi
+namespace usagi::poc::executive_1
 {
 // -----------------------------------------------------------------------------
 // Core Mathematical Primitives & Semantics
@@ -515,4 +515,4 @@ public:
         db_ref.remove_component_immediate(id, mask);
     }
 };
-} // namespace usagi
+} // namespace usagi::poc::executive_1

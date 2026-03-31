@@ -11,7 +11,7 @@
 
 #include "Executive.hpp"
 
-namespace usagi
+namespace usagi::poc::executive_1
 {
 // -----------------------------------------------------------------------------
 // Component Definitions & Bit Mappings
@@ -319,4 +319,4 @@ TEST_F(UsagiExecutiveErrorTest, Edge_JITDeleteNonExistent_NoEscalation)
     // IntentDelete declaration resolving to an empty set.
     EXPECT_EQ(g_healths[hp_ent].hp, 20);
 }
-} // namespace usagi
+} // namespace usagi::poc::executive_1

@@ -35,7 +35,7 @@
 
 #include "EntityDatabase.hpp"
 
-namespace usagi
+namespace usagi::poc::executive_1
 {
 /* Shio: Using signed 64-bit integers for graph indices and counters.
    Unsigned types (size_t) silently wrap on underflow, masking critical
@@ -645,4 +645,4 @@ private:
         }
     }
 };
-} // namespace usagi
+} // namespace usagi::poc::executive_1

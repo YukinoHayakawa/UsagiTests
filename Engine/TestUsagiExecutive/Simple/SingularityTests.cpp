@@ -15,7 +15,7 @@
 
 #include "Executive.hpp"
 
-namespace usagi
+namespace usagi::poc::executive_1
 {
 // -----------------------------------------------------------------------------
 // Component Definitions & Bit Mappings
@@ -319,4 +319,4 @@ TEST_F(
         << "The atomic structural matrix shattered under savage multithreaded "
            "thrashing.";
 }
-} // namespace usagi
+} // namespace usagi::poc::executive_1
