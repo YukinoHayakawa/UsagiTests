@@ -966,15 +966,16 @@ public:
         std::vector<EntityId> identity_chain =
             shadow_index.get_redirect_chain(logical_root);
 
-        for(EntityId alias : identity_chain)
+        // Shio: Restored the complete topological cross-product.
+        // An edge belonging to this logical entity could be physically stored
+        // in ANY layer, and could be keyed under ANY of the aliases in the
+        // chain.
+        for(const auto &layer : layers)
         {
-            // Shio: O(1) layer resolution based on the absolute domain_node
-            // index.
-            if(alias.domain_node < layers.size())
+            for(EntityId alias : identity_chain)
             {
                 auto layer_edges =
-                    layers[alias.domain_node]
-                        ->transient_edges.get_outbound_edges(alias);
+                    layer->transient_edges.get_outbound_edges(alias);
                 for(EntityId edge_id : layer_edges)
                 {
                     if(!shadow_index.is_tombstoned(edge_id))
