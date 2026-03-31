@@ -264,7 +264,6 @@ consteval ComponentMask get_component_bit<CompShadowRedirect>()
 {
     return 1ull << 63;
 }
-
 } // namespace usagi
 
 // Hash specialization
@@ -287,7 +286,6 @@ struct hash<usagi::EntityId>
 
 namespace usagi
 {
-
 // -----------------------------------------------------------------------------
 // Transient Runtime Indices (RAM Only)
 // -----------------------------------------------------------------------------
@@ -356,6 +354,19 @@ public:
         return it != shadowed_lanes.end() ? it->second : 0ull;
     }
 
+    // Shio: Explicit $O(1)$ verification if an entity (e.g. an Edge) was killed
+    // by an upper layer
+    bool is_tombstoned(EntityId id) const
+    {
+        uint64_t key = build_page_key(id);
+        auto     it  = shadowed_lanes.find(key);
+        if(it != shadowed_lanes.end())
+        {
+            return (it->second & (1ull << id.slot)) != 0;
+        }
+        return false;
+    }
+
     std::optional<EntityId> resolve_redirect(EntityId base_entity) const
     {
         auto it = redirects.find(base_entity);
@@ -370,6 +381,21 @@ public:
             current = it->second;
         }
         return current;
+    }
+
+    // Shio: Retrieves the entire alias chain [Base, Patch1, Patch2] for
+    // topological unions
+    std::vector<EntityId> get_redirect_chain(EntityId base_entity) const
+    {
+        std::vector<EntityId> chain;
+        chain.push_back(base_entity);
+        auto it = redirects.find(base_entity);
+        while(it != redirects.end())
+        {
+            chain.push_back(it->second);
+            it = redirects.find(it->second);
+        }
+        return chain;
     }
 
     void clear()
@@ -521,13 +547,25 @@ class EntityDatabase
 
     std::array<std::vector<DeferredSpawn>, MAX_SPAWN_PARTITIONS> spawn_queues;
     std::vector<DeferredEdge> edge_spawn_queue;
-    std::atomic<bool>         has_spawns { false };
+    bool                      has_spawns_flag {
+        false
+    }; // Pure bool, mathematically coerced to atomic at call sites
 
 public:
     TransientEdgeIndex      transient_edges;
     ComponentPayloadStorage payloads;
 
     EntityDatabase() = default;
+
+    // Explicitly delete copy semantics to mathematically prevent OS boundary
+    // violation
+    EntityDatabase(const EntityDatabase &)            = delete;
+    EntityDatabase &operator=(const EntityDatabase &) = delete;
+
+    // Default move semantics are fully restored because we eradicated
+    // std::atomic
+    EntityDatabase(EntityDatabase &&) noexcept            = default;
+    EntityDatabase &operator=(EntityDatabase &&) noexcept = default;
 
     void set_local_domain(uint32_t node_id) { local_domain_node = node_id; }
 
@@ -660,7 +698,8 @@ public:
     void queue_spawn(ComponentMask initial_mask, uint32_t partition_id)
     {
         spawn_queues[partition_id].push_back({ initial_mask, partition_id });
-        has_spawns.store(true, std::memory_order_relaxed);
+        std::atomic_ref<bool>(has_spawns_flag)
+            .store(true, std::memory_order_relaxed);
     }
 
     void queue_edge_registration(
@@ -668,17 +707,19 @@ public:
     {
         edge_spawn_queue.push_back(
             { source, INVALID_ENTITY, target, edge_mask });
-        has_spawns.store(true, std::memory_order_relaxed);
+        std::atomic_ref<bool>(has_spawns_flag)
+            .store(true, std::memory_order_relaxed);
     }
 
     bool has_pending_spawns() const
     {
-        return has_spawns.load(std::memory_order_relaxed);
+        return std::atomic_ref<bool>(const_cast<bool &>(has_spawns_flag))
+            .load(std::memory_order_relaxed);
     }
 
     void commit_pending_spawns()
     {
-        if(!has_spawns.load(std::memory_order_relaxed)) return;
+        if(!has_pending_spawns()) return;
         for(uint32_t p = 0; p < MAX_SPAWN_PARTITIONS; ++p)
         {
             for(auto &spawn : spawn_queues[p])
@@ -693,7 +734,8 @@ public:
             transient_edges.register_edge(edge.source, edge_id);
         }
         edge_spawn_queue.clear();
-        has_spawns.store(false, std::memory_order_relaxed);
+        std::atomic_ref<bool>(has_spawns_flag)
+            .store(false, std::memory_order_relaxed);
     }
 
     void clear_database()
@@ -710,7 +752,8 @@ public:
         edge_spawn_queue.clear();
         transient_edges.clear();
         payloads.clear();
-        has_spawns.store(false, std::memory_order_relaxed);
+        std::atomic_ref<bool>(has_spawns_flag)
+            .store(false, std::memory_order_relaxed);
     }
 
     // --- Serialization Mechanics ---
@@ -762,7 +805,7 @@ class LayeredDatabaseAggregator
 
     std::vector<ShadowRedirectPayload> shadow_queue;
     std::vector<TombstonePayload>      tombstone_queue;
-    std::atomic<bool>                  has_shadow_mutations { false };
+    bool has_shadow_mutations_flag { false }; // Eradicated std::atomic
 
 public:
     LayeredDatabaseAggregator()
@@ -779,6 +822,17 @@ public:
         layers.push_back(std::move(top));
         for(uint32_t i = 0; i < layers.size(); ++i)
             layers[i]->set_local_domain(i);
+    }
+
+    /* Yukino: Safely appends a new mutable patch layer (e.g. D1 -> D2)
+       without invoking deleted std::move semantics on active atomic matrices.
+     */
+    void push_new_mutable_patch_layer()
+    {
+        uint32_t new_domain = static_cast<uint32_t>(layers.size());
+        auto     new_layer  = std::make_unique<EntityDatabase>();
+        new_layer->set_local_domain(new_domain);
+        layers.push_back(std::move(new_layer));
     }
 
     void rebuild_transient_indices()
@@ -845,65 +899,102 @@ public:
         return 0;
     }
 
+    /* Shio: The topological union fix for Shadow-Edge Collapse.
+       We trace the entire N-Layer redirect chain, aggregate the edges from all
+       historical aliases, and apply explicit Tombstone filtering to respect
+       edge deletions. */
     std::vector<EntityId> get_outbound_edges(EntityId source) const
     {
-        EntityId actual_source = source;
-        if(auto patch_id = shadow_index.resolve_redirect(source))
-            actual_source = *patch_id;
-        for(const auto &layer : layers)
+        std::vector<EntityId> aggregated_edges;
+        std::vector<EntityId> identity_chain =
+            shadow_index.get_redirect_chain(source);
+
+        for(EntityId alias : identity_chain)
         {
-            if(layer->get_domain() == actual_source.domain_node)
-                return layer->transient_edges.get_outbound_edges(actual_source);
+            for(const auto &layer : layers)
+            {
+                if(layer->get_domain() == alias.domain_node)
+                {
+                    auto layer_edges =
+                        layer->transient_edges.get_outbound_edges(alias);
+                    for(EntityId edge_id : layer_edges)
+                    {
+                        // Mathematically drop edges explicitly deleted by the
+                        // patch layer
+                        if(!shadow_index.is_tombstoned(edge_id))
+                        {
+                            aggregated_edges.push_back(edge_id);
+                        }
+                    }
+                }
+            }
         }
-        return { };
+        return aggregated_edges;
     }
+
+    // --- Write Interceptors (Enforcing Terminal Alias Resolution) ---
 
     void destroy_entity(EntityId id)
     {
-        if(id.domain_node == layers.back()->get_domain())
-            layers.back()->destroy_entity_immediate(id);
+        EntityId terminal_id = id;
+        if(auto alias = shadow_index.resolve_redirect(id)) terminal_id = *alias;
+
+        if(terminal_id.domain_node == layers.back()->get_domain())
+            layers.back()->destroy_entity_immediate(terminal_id);
         else
         {
-            tombstone_queue.push_back({ id });
-            has_shadow_mutations.store(true, std::memory_order_relaxed);
+            tombstone_queue.push_back({ terminal_id });
+            std::atomic_ref<bool>(has_shadow_mutations_flag)
+                .store(true, std::memory_order_relaxed);
         }
     }
 
     void add_component(EntityId id, ComponentMask mask, uint32_t partition)
     {
-        if(id.domain_node == layers.back()->get_domain())
-            layers.back()->add_component_immediate(id, mask);
+        EntityId terminal_id = id;
+        if(auto alias = shadow_index.resolve_redirect(id)) terminal_id = *alias;
+
+        if(terminal_id.domain_node == layers.back()->get_domain())
+            layers.back()->add_component_immediate(terminal_id, mask);
         else
         {
-            ComponentMask existing = get_dynamic_mask(id);
-            shadow_queue.push_back({ id, existing | mask, partition });
-            has_shadow_mutations.store(true, std::memory_order_relaxed);
+            ComponentMask existing = get_dynamic_mask(terminal_id);
+            shadow_queue.push_back({ terminal_id, existing | mask, partition });
+            std::atomic_ref<bool>(has_shadow_mutations_flag)
+                .store(true, std::memory_order_relaxed);
         }
     }
 
     void remove_component(EntityId id, ComponentMask mask, uint32_t partition)
     {
-        if(id.domain_node == layers.back()->get_domain())
-            layers.back()->remove_component_immediate(id, mask);
+        EntityId terminal_id = id;
+        if(auto alias = shadow_index.resolve_redirect(id)) terminal_id = *alias;
+
+        if(terminal_id.domain_node == layers.back()->get_domain())
+            layers.back()->remove_component_immediate(terminal_id, mask);
         else
         {
-            ComponentMask existing = get_dynamic_mask(id);
-            shadow_queue.push_back({ id, existing & ~mask, partition });
-            has_shadow_mutations.store(true, std::memory_order_relaxed);
+            ComponentMask existing = get_dynamic_mask(terminal_id);
+            shadow_queue.push_back(
+                { terminal_id, existing & ~mask, partition });
+            std::atomic_ref<bool>(has_shadow_mutations_flag)
+                .store(true, std::memory_order_relaxed);
         }
     }
 
     bool has_pending_spawns() const
     {
         return layers.back()->has_pending_spawns() ||
-            has_shadow_mutations.load(std::memory_order_relaxed);
+            std::atomic_ref<bool>(const_cast<bool &>(has_shadow_mutations_flag))
+                .load(std::memory_order_relaxed);
     }
 
     void commit_pending_spawns()
     {
         layers.back()->commit_pending_spawns();
 
-        if(has_shadow_mutations.load(std::memory_order_relaxed))
+        if(std::atomic_ref<bool>(has_shadow_mutations_flag)
+                .load(std::memory_order_relaxed))
         {
             for(const auto &tb : tombstone_queue)
             {
@@ -921,7 +1012,8 @@ public:
             }
             tombstone_queue.clear();
             shadow_queue.clear();
-            has_shadow_mutations.store(false, std::memory_order_relaxed);
+            std::atomic_ref<bool>(has_shadow_mutations_flag)
+                .store(false, std::memory_order_relaxed);
         }
     }
 };
