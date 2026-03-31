@@ -43,6 +43,7 @@
   <PropertyGroup Label="UserMacros">
   </PropertyGroup>
   <ItemGroup>
+    <ClCompile Include="Pipelined\IntegrityTests.cpp" />
     <ClCompile Include="Simple\DataAccessTests.cpp" />
     <ClCompile Include="Simple\PathologicalTests.cpp" />
     <ClCompile Include="Simple\ErrorTests.cpp" />
@@ -57,9 +58,19 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Pipelined\Executive.hpp" />
+    <ClInclude Include="Pipelined\Orchestrator.hpp" />
     <ClInclude Include="Simple\EntityDatabase.hpp" />
     <ClInclude Include="Simple\Executive.hpp" />
-    <ClInclude Include="Simple\README.md" />
+    <ClInclude Include="Pipelined\EntityDatabase.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Docs\Bipartite.md" />
+    <None Include="Docs\Execution.md" />
+    <None Include="Docs\Testing.md" />
+    <None Include="Docs\Testing2.md" />
+    <None Include="Pipelined\roadmap-20260331.svg" />
+    <None Include="Simple\roadmap-20260326.svg" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
