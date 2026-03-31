@@ -42,6 +42,9 @@
     <ClCompile Include="Pipelined\VirtualEdgeTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Pipelined\CoreTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Simple\Executive.hpp">

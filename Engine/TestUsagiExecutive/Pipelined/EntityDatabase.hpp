@@ -324,6 +324,10 @@ class TransientShadowIndex
     std::unordered_map<uint64_t, uint64_t> shadowed_lanes;
     std::unordered_map<EntityId, EntityId> redirects;
 
+    // Shio: The reverse alias mapping. Resolves any physical patch coordinate
+    // back to its immutable logical root in the base layer.
+    std::unordered_map<EntityId, EntityId> reverse_redirects;
+
     constexpr uint64_t build_page_key(const EntityId &id) const
     {
         return (static_cast<uint64_t>(id.domain_node) << 32) |
@@ -341,7 +345,8 @@ public:
     void add_redirect(EntityId base_entity, EntityId patch_entity)
     {
         add_tombstone(base_entity);
-        redirects[base_entity] = patch_entity;
+        redirects[base_entity]          = patch_entity;
+        reverse_redirects[patch_entity] = base_entity;
     }
 
     uint64_t get_shadow_mask(
@@ -365,6 +370,15 @@ public:
             return (it->second & (1ull << id.slot)) != 0;
         }
         return false;
+    }
+
+    // Yukino: Recursive reverse lookup. If D2 patched D1, and D1 patched D0,
+    // passing D2 recursively resolves to D0.
+    EntityId get_logical_root(EntityId id) const
+    {
+        auto it = reverse_redirects.find(id);
+        if(it != reverse_redirects.end()) return get_logical_root(it->second);
+        return id;
     }
 
     std::optional<EntityId> resolve_redirect(EntityId base_entity) const
@@ -402,6 +416,7 @@ public:
     {
         shadowed_lanes.clear();
         redirects.clear();
+        reverse_redirects.clear();
     }
 };
 
@@ -430,26 +445,42 @@ consteval void assert_pod_structures()
 // Simulates a POSIX mmap / Windows MapViewOfFile memory region
 class VirtualMemoryArena
 {
-    std::vector<uint8_t> memory;
-    size_t               capacity_pages { 0 };
-    size_t               allocated_pages { 0 };
+    // Yukino: Eradicated std::vector to mathematically bypass libc++
+    // value-initialization loops. std::make_unique_for_overwrite provides raw
+    // uninitialized blocks comparable to mmap.
+    std::unique_ptr<uint8_t[]> memory;
+    size_t                     capacity_pages { 0 };
+    size_t                     allocated_pages { 0 };
 
 public:
-    VirtualMemoryArena(size_t initial_pages = 1'024)
+    VirtualMemoryArena(size_t initial_pages = 4)
     {
         capacity_pages = initial_pages;
-        memory.resize(capacity_pages * sizeof(HiveMetadataPage));
+        memory         = std::make_unique_for_overwrite<uint8_t[]>(
+            capacity_pages * sizeof(HiveMetadataPage));
     }
 
     HiveMetadataPage *allocate_page()
     {
         if(allocated_pages >= capacity_pages)
         {
-            capacity_pages *= 2;
-            memory.resize(capacity_pages * sizeof(HiveMetadataPage));
+            size_t new_capacity = capacity_pages * 2;
+            auto   new_memory   = std::make_unique_for_overwrite<uint8_t[]>(
+                new_capacity * sizeof(HiveMetadataPage));
+
+            if(allocated_pages > 0)
+            {
+                std::memcpy(
+                    new_memory.get(),
+                    memory.get(),
+                    allocated_pages * sizeof(HiveMetadataPage));
+            }
+            memory         = std::move(new_memory);
+            capacity_pages = new_capacity;
         }
+
         uint8_t *ptr =
-            memory.data() + (allocated_pages * sizeof(HiveMetadataPage));
+            memory.get() + (allocated_pages * sizeof(HiveMetadataPage));
         allocated_pages++;
         // Explicitly start lifetime as pure data
         auto *page         = new (ptr) HiveMetadataPage();
@@ -465,8 +496,7 @@ public:
         // const_cast needed because the arena represents raw mutable hardware
         // RAM mapped by the OS
         return reinterpret_cast<HiveMetadataPage *>(
-            const_cast<uint8_t *>(memory.data()) +
-            (page_idx * sizeof(HiveMetadataPage)));
+            memory.get() + (page_idx * sizeof(HiveMetadataPage)));
     }
 
     size_t page_count() const { return allocated_pages; }
@@ -477,16 +507,23 @@ public:
     std::vector<uint8_t> export_memory() const
     {
         std::vector<uint8_t> dump(allocated_pages * sizeof(HiveMetadataPage));
-        std::memcpy(dump.data(), memory.data(), dump.size());
+        if(allocated_pages > 0)
+        {
+            std::memcpy(dump.data(), memory.get(), dump.size());
+        }
         return dump;
     }
 
     void import_memory(const std::vector<uint8_t> &dump)
     {
         allocated_pages = dump.size() / sizeof(HiveMetadataPage);
-        capacity_pages  = allocated_pages + 1'024;
-        memory.resize(capacity_pages * sizeof(HiveMetadataPage));
-        std::memcpy(memory.data(), dump.data(), dump.size());
+        capacity_pages  = allocated_pages + 4;
+        memory          = std::make_unique_for_overwrite<uint8_t[]>(
+            capacity_pages * sizeof(HiveMetadataPage));
+        if(allocated_pages > 0)
+        {
+            std::memcpy(memory.get(), dump.data(), dump.size());
+        }
     }
 };
 
@@ -555,15 +592,9 @@ public:
     TransientEdgeIndex      transient_edges;
     ComponentPayloadStorage payloads;
 
-    EntityDatabase() = default;
-
-    // Explicitly delete copy semantics to mathematically prevent OS boundary
-    // violation
-    EntityDatabase(const EntityDatabase &)            = delete;
-    EntityDatabase &operator=(const EntityDatabase &) = delete;
-
-    // Default move semantics are fully restored because we eradicated
-    // std::atomic
+    EntityDatabase()                                      = default;
+    EntityDatabase(const EntityDatabase &)                = delete;
+    EntityDatabase &operator=(const EntityDatabase &)     = delete;
     EntityDatabase(EntityDatabase &&) noexcept            = default;
     EntityDatabase &operator=(EntityDatabase &&) noexcept = default;
 
@@ -899,9 +930,20 @@ public:
     {
         if(auto patch_id = shadow_index.resolve_redirect(id))
         {
-            return layers.back()->get_dynamic_mask_raw(*patch_id);
+            // Shio: O(1) array lookup based on the resolved alias's native
+            // domain.
+            if(patch_id->domain_node < layers.size())
+            {
+                return layers[patch_id->domain_node]->get_dynamic_mask_raw(
+                    *patch_id);
+            }
+            return 0;
         }
+
+        if(shadow_index.is_tombstoned(id)) return 0;
+
         // Shio: O(1) array lookup. Eradicated the O(M) iterative search.
+        // Fallback to the original entity's native domain if unpatched
         if(id.domain_node < layers.size())
         {
             return layers[id.domain_node]->get_dynamic_mask_raw(id);
@@ -916,8 +958,13 @@ public:
     std::vector<EntityId> get_outbound_edges(EntityId source) const
     {
         std::vector<EntityId> aggregated_edges;
+
+        // Shio: Mathematically reduce the passed coordinate to the base logical
+        // identity BEFORE projecting the forward alias chain. This seals the
+        // identity leak.
+        EntityId logical_root = shadow_index.get_logical_root(source);
         std::vector<EntityId> identity_chain =
-            shadow_index.get_redirect_chain(source);
+            shadow_index.get_redirect_chain(logical_root);
 
         for(EntityId alias : identity_chain)
         {
@@ -944,8 +991,10 @@ public:
 
     void destroy_entity(EntityId id)
     {
-        EntityId terminal_id = id;
-        if(auto alias = shadow_index.resolve_redirect(id)) terminal_id = *alias;
+        EntityId logical_root = shadow_index.get_logical_root(id);
+        EntityId terminal_id  = logical_root;
+        if(auto alias = shadow_index.resolve_redirect(logical_root))
+            terminal_id = *alias;
 
         if(terminal_id.domain_node == layers.back()->get_domain())
             layers.back()->destroy_entity_immediate(terminal_id);
@@ -959,8 +1008,10 @@ public:
 
     void add_component(EntityId id, ComponentMask mask, uint32_t partition)
     {
-        EntityId terminal_id = id;
-        if(auto alias = shadow_index.resolve_redirect(id)) terminal_id = *alias;
+        EntityId logical_root = shadow_index.get_logical_root(id);
+        EntityId terminal_id  = logical_root;
+        if(auto alias = shadow_index.resolve_redirect(logical_root))
+            terminal_id = *alias;
 
         if(terminal_id.domain_node == layers.back()->get_domain())
             layers.back()->add_component_immediate(terminal_id, mask);
@@ -975,8 +1026,10 @@ public:
 
     void remove_component(EntityId id, ComponentMask mask, uint32_t partition)
     {
-        EntityId terminal_id = id;
-        if(auto alias = shadow_index.resolve_redirect(id)) terminal_id = *alias;
+        EntityId logical_root = shadow_index.get_logical_root(id);
+        EntityId terminal_id  = logical_root;
+        if(auto alias = shadow_index.resolve_redirect(logical_root))
+            terminal_id = *alias;
 
         if(terminal_id.domain_node == layers.back()->get_domain())
             layers.back()->remove_component_immediate(terminal_id, mask);
