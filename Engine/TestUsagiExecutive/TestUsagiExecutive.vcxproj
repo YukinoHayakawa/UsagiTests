@@ -43,13 +43,13 @@
   <PropertyGroup Label="UserMacros">
   </PropertyGroup>
   <ItemGroup>
-    <ClCompile Include="DataAccessTests.cpp" />
-    <ClCompile Include="PathologicalTests.cpp" />
-    <ClCompile Include="ErrorTests.cpp" />
-    <ClCompile Include="ParallelFuzzerTests.cpp" />
-    <ClCompile Include="NormalTests.cpp" />
-    <ClCompile Include="PathologicalTests2.cpp" />
-    <ClCompile Include="SingularityTests.cpp" />
+    <ClCompile Include="Simple\DataAccessTests.cpp" />
+    <ClCompile Include="Simple\PathologicalTests.cpp" />
+    <ClCompile Include="Simple\ErrorTests.cpp" />
+    <ClCompile Include="Simple\ParallelFuzzerTests.cpp" />
+    <ClCompile Include="Simple\NormalTests.cpp" />
+    <ClCompile Include="Simple\PathologicalTests2.cpp" />
+    <ClCompile Include="Simple\SingularityTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\Targets\DefaultTest\DefaultTest.vcxproj">
@@ -57,9 +57,9 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="EntityDatabase.hpp" />
-    <ClInclude Include="Executive.hpp" />
-    <ClInclude Include="README.md" />
+    <ClInclude Include="Simple\EntityDatabase.hpp" />
+    <ClInclude Include="Simple\Executive.hpp" />
+    <ClInclude Include="Simple\README.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

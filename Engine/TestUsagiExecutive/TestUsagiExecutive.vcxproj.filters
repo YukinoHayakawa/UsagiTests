@@ -15,36 +15,36 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="NormalTests.cpp">
+    <ClCompile Include="Simple\NormalTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ErrorTests.cpp">
+    <ClCompile Include="Simple\ErrorTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ParallelFuzzerTests.cpp">
+    <ClCompile Include="Simple\ParallelFuzzerTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="PathologicalTests.cpp">
+    <ClCompile Include="Simple\PathologicalTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="DataAccessTests.cpp">
+    <ClCompile Include="Simple\DataAccessTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="PathologicalTests2.cpp">
+    <ClCompile Include="Simple\PathologicalTests2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SingularityTests.cpp">
+    <ClCompile Include="Simple\SingularityTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Executive.hpp">
+    <ClInclude Include="Simple\Executive.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="README.md">
+    <ClInclude Include="Simple\README.md">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="EntityDatabase.hpp">
+    <ClInclude Include="Simple\EntityDatabase.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
