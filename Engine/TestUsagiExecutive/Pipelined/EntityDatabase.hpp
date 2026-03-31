@@ -816,6 +816,14 @@ public:
 
     void mount_readonly_layer(std::unique_ptr<EntityDatabase> db)
     {
+        if(layers.back()->query_entities(0xFFFF'FFFF'FFFF'FFFF).size() > 0)
+        {
+            throw std::runtime_error(
+                "FATAL: Cannot mount read-only layer underneath an active "
+                "patch layer. "
+                "Use push_new_mutable_patch_layer() dynamically, or configure "
+                "mounts strictly during initialization.");
+        }
         auto top = std::move(layers.back());
         layers.pop_back();
         layers.push_back(std::move(db));
@@ -890,11 +898,13 @@ public:
     ComponentMask get_dynamic_mask(EntityId id) const
     {
         if(auto patch_id = shadow_index.resolve_redirect(id))
-            return layers.back()->get_dynamic_mask_raw(*patch_id);
-        for(const auto &layer : layers)
         {
-            if(layer->get_domain() == id.domain_node)
-                return layer->get_dynamic_mask_raw(id);
+            return layers.back()->get_dynamic_mask_raw(*patch_id);
+        }
+        // Shio: O(1) array lookup. Eradicated the O(M) iterative search.
+        if(id.domain_node < layers.size())
+        {
+            return layers[id.domain_node]->get_dynamic_mask_raw(id);
         }
         return 0;
     }
@@ -911,20 +921,18 @@ public:
 
         for(EntityId alias : identity_chain)
         {
-            for(const auto &layer : layers)
+            // Shio: O(1) layer resolution based on the absolute domain_node
+            // index.
+            if(alias.domain_node < layers.size())
             {
-                if(layer->get_domain() == alias.domain_node)
+                auto layer_edges =
+                    layers[alias.domain_node]
+                        ->transient_edges.get_outbound_edges(alias);
+                for(EntityId edge_id : layer_edges)
                 {
-                    auto layer_edges =
-                        layer->transient_edges.get_outbound_edges(alias);
-                    for(EntityId edge_id : layer_edges)
+                    if(!shadow_index.is_tombstoned(edge_id))
                     {
-                        // Mathematically drop edges explicitly deleted by the
-                        // patch layer
-                        if(!shadow_index.is_tombstoned(edge_id))
-                        {
-                            aggregated_edges.push_back(edge_id);
-                        }
+                        aggregated_edges.push_back(edge_id);
                     }
                 }
             }

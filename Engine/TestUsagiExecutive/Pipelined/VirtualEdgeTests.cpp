@@ -1,9 +1,11 @@
 ﻿/*
- * Usagi Engine: Virtualization Shadow-Edge Collapse Proofs
+ * Usagi Engine: Virtualization Shadow-Edge Collapse & Deep Scale Proofs
  * -----------------------------------------------------------------------------
  * Interrogates the mathematical union of Bipartite Graph Adjacency Lists across
- * N-Layer shadow redirects. Explicitly verifies that patching an entity does
- * not drop its relations, and that edge tombstones are properly respected.
+ * N-Layer shadow redirects. Evaluates deep recursion bounds, ghost edge
+ * resurrections, and aggregated scattering. Explicitly verifies that patching
+ * an entity does not drop its relations, and that edge tombstones are properly
+ * respected.
  */
 
 #include "Orchestrator.hpp"
@@ -175,5 +177,100 @@ TEST_F(UsagiVirtualizationEdgeTest, Virtualization_MultiHopAliasResolution)
     EXPECT_EQ(final_mask, expected_mask)
         << "Multi-Hop Alias Resolution Failed. The Aggregator overwrote the D1 "
            "redirect and lost the chain.";
+}
+
+// --- PATHOLOGICAL SCALING PROOFS ---
+
+TEST_F(UsagiVirtualizationEdgeTest, Pathological_DeepRedirectChainThrashing)
+{
+    LayeredDatabaseAggregator local_db;
+    auto                      temp_base = std::make_unique<EntityDatabase>();
+    EntityId                  ent =
+        temp_base->create_entity_immediate(build_mask<CompAgent>(), 0);
+    local_db.mount_readonly_layer(std::move(temp_base));
+
+    // Thrash the entity across 100 mounted patch layers.
+    // If the resolution algorithm is exponential or recursive without tail-call
+    // optimization, this will blow the call stack or time out.
+    constexpr int CHAIN_DEPTH = 100;
+    for(int i = 0; i < CHAIN_DEPTH; ++i)
+    {
+        local_db.add_component(
+            ent, build_mask<CompTarget>(), 0); // Mutate to force redirect
+        local_db.commit_pending_spawns();
+        local_db.push_new_mutable_patch_layer();
+    }
+
+    // Mathematical resolution across 100 DLC boundaries.
+    ComponentMask final_mask = local_db.get_dynamic_mask(ent);
+    EXPECT_EQ(
+        final_mask, (build_mask<CompAgent, CompTarget, CompShadowRedirect>()))
+        << "Deep chain alias resolution corrupted the physical component mask.";
+}
+
+TEST_F(UsagiVirtualizationEdgeTest, Edge_GhostResurrectionProof)
+{
+    LayeredDatabaseAggregator local_db;
+    auto                      temp_base = std::make_unique<EntityDatabase>();
+    EntityId                  src =
+        temp_base->create_entity_immediate(build_mask<CompAgent>(), 0);
+    EntityId tgt =
+        temp_base->create_entity_immediate(build_mask<CompTarget>(), 0);
+
+    temp_base->queue_edge_registration(src, tgt, build_mask<EdgeTracking>());
+    temp_base->commit_pending_spawns();
+    EntityId base_edge_id =
+        temp_base->transient_edges.get_outbound_edges(src)[0];
+
+    local_db.mount_readonly_layer(std::move(temp_base));
+
+    // L1: Tombstone the edge
+    local_db.destroy_entity(base_edge_id);
+    local_db.commit_pending_spawns();
+    local_db.push_new_mutable_patch_layer();
+
+    // L2: Resurrect the edge (spawns a mathematically new physical entity, but
+    // logically identical)
+    local_db.get_mutable_layer().queue_edge_registration(
+        src, tgt, build_mask<EdgeTracking>());
+    local_db.commit_pending_spawns();
+
+    auto aggregated = local_db.get_outbound_edges(src);
+
+    // It must return EXACTLY ONE edge. Not zero (because we resurrected it),
+    // and not two (because the base edge must remain mathematically
+    // tombstoned).
+    ASSERT_EQ(aggregated.size(), 1)
+        << "Ghost Resurrection failed. Tombstone filter incorrectly merged or "
+           "deleted active boundaries.";
+    EXPECT_NE(aggregated[0], base_edge_id)
+        << "Tombstone filter erroneously returned the dead base edge.";
+}
+
+TEST_F(UsagiVirtualizationEdgeTest, Edge_MultiTargetScatterAggregation)
+{
+    LayeredDatabaseAggregator local_db;
+    auto                      temp_base = std::make_unique<EntityDatabase>();
+    EntityId                  src =
+        temp_base->create_entity_immediate(build_mask<CompAgent>(), 0);
+    local_db.mount_readonly_layer(std::move(temp_base));
+
+    // Scatter 50 targets across 10 layers.
+    for(int layer = 0; layer < 10; ++layer)
+    {
+        for(int i = 0; i < 5; ++i)
+        {
+            EntityId tgt = local_db.get_mutable_layer().create_entity_immediate(
+                build_mask<CompTarget>(), 0);
+            local_db.get_mutable_layer().queue_edge_registration(
+                src, tgt, build_mask<EdgeTracking>());
+        }
+        local_db.commit_pending_spawns();
+        if(layer < 9) local_db.push_new_mutable_patch_layer();
+    }
+
+    auto aggregated = local_db.get_outbound_edges(src);
+    EXPECT_EQ(aggregated.size(), 50) << "Aggregator dropped fractured edges "
+                                        "across multi-layer DLC boundaries.";
 }
 } // namespace usagi
