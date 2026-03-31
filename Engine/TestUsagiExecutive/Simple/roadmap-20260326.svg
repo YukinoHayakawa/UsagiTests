@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1190 842" width="100%" height="100%" style="background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+
+  <defs>
+    <!-- Drop Shadows for Nodes -->
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0F172A" flood-opacity="0.08"/>
+    </filter>
+    <filter id="shadow-heavy" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#0F172A" flood-opacity="0.12"/>
+    </filter>
+
+    <!-- Blueprint Grid (Faded for older architecture) -->
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#CBD5E1" stroke-width="0.5"/>
+    </pattern>
+
+    <!-- Arrowheads -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748B"/>
+    </marker>
+  </defs>
+
+  <!-- Background Grid -->
+  <rect width="100%" height="100%" fill="url(#grid)" />
+
+  <!-- Header -->
+  <text x="595" y="70" text-anchor="middle" font-size="32" font-weight="800" fill="#334155" letter-spacing="1">USAGI ENGINE: DISCRETE ENDOMORPHISM ARCHITECTURE</text>
+  <text x="595" y="100" text-anchor="middle" font-size="16" font-weight="500" fill="#64748B" letter-spacing="2">PREVIOUS STATE (BEFORE SPATIAL &amp; PIPELINE REWRITE)</text>
+  <text x="1140" y="800" text-anchor="end" font-size="14" font-style="italic" fill="#94A3B8">甘いいちご 🍓</text>
+
+  <!-- ========================================== -->
+  <!-- LAYER 4: SYNCHRONOUS EXECUTION             -->
+  <!-- ========================================== -->
+  <g transform="translate(60, 150)">
+    <!-- Boundary Box -->
+    <rect width="1070" height="130" rx="12" fill="#F1F5F9" filter="url(#shadow-heavy)" stroke="#94A3B8" stroke-width="2"/>
+    <text x="30" y="35" font-size="14" font-weight="700" fill="#475569" letter-spacing="1">LAYER 4: EXECUTION (THE DISCRETE FRAME BARRIER)</text>
+
+    <!-- Concept 1: Synchronous Block -->
+    <rect x="50" y="55" width="300" height="50" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="65" y="75" font-size="14" font-weight="700" fill="#334155">Synchronous Frame Execution</text>
+    <text x="65" y="95" font-size="12" font-family="monospace" fill="#64748B">execute_frame() (Blocks until DAG empty)</text>
+
+    <!-- Concept 2: Static Reflection -->
+    <rect x="385" y="55" width="300" height="50" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="400" y="75" font-size="14" font-weight="700" fill="#334155">C++26 Static Reflection</text>
+    <text x="400" y="95" font-size="12" font-family="monospace" fill="#64748B">EntityQuery&lt;Read&lt;T&gt;, Write&lt;U&gt;&gt; (^^Args...)</text>
+
+    <!-- Concept 3: Exception Firewalls -->
+    <rect x="720" y="55" width="300" height="50" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="735" y="75" font-size="14" font-weight="700" fill="#334155">Topological Poison Diffusion</text>
+    <text x="735" y="95" font-size="12" font-family="monospace" fill="#64748B">SEH Firewalls &amp; Subgraph Aborts</text>
+  </g>
+
+  <!-- ========================================== -->
+  <!-- LAYER 3: TOPOLOGY & LOCKING                -->
+  <!-- ========================================== -->
+  <g transform="translate(60, 310)">
+    <rect width="1070" height="130" rx="12" fill="#F1F5F9" filter="url(#shadow)" stroke="#94A3B8" stroke-width="2"/>
+    <text x="30" y="35" font-size="14" font-weight="700" fill="#475569" letter-spacing="1">LAYER 3: TOPOLOGY &amp; ISOLATION</text>
+
+    <!-- Concept 1: Discrete Endomorphism -->
+    <rect x="50" y="55" width="300" height="50" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="65" y="75" font-size="14" font-weight="700" fill="#334155">Discrete Endomorphism</text>
+    <text x="65" y="95" font-size="12" font-family="monospace" fill="#64748B">f: S_t → S_t+1 (No overlap allowed)</text>
+
+    <!-- Concept 2: Naive Lock Escalation -->
+    <rect x="385" y="55" width="300" height="50" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="400" y="75" font-size="14" font-weight="700" fill="#334155">Naive JIT Lock Escalation</text>
+    <text x="400" y="95" font-size="12" font-family="monospace" fill="#64748B">Lacks Transitive Closure / Cascade Awareness</text>
+
+    <!-- Concept 3: Edge Severing -->
+    <rect x="720" y="55" width="300" height="50" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="735" y="75" font-size="14" font-weight="700" fill="#334155">Orthogonal Edge Severing</text>
+    <text x="735" y="95" font-size="12" font-family="monospace" fill="#64748B">DataAccessFlags::{Atomic, Discard}</text>
+  </g>
+
+  <!-- ========================================== -->
+  <!-- LAYER 2: CONCURRENCY                       -->
+  <!-- ========================================== -->
+  <g transform="translate(60, 470)">
+    <rect width="1070" height="130" rx="12" fill="#F1F5F9" filter="url(#shadow)" stroke="#94A3B8" stroke-width="2"/>
+    <text x="30" y="35" font-size="14" font-weight="700" fill="#475569" letter-spacing="1">LAYER 2: CONCURRENCY DOMAIN</text>
+
+    <!-- Concept 1: Table Locking -->
+    <rect x="50" y="55" width="300" height="50" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="65" y="75" font-size="14" font-weight="700" fill="#334155">Table-Level Locking</text>
+    <text x="65" y="95" font-size="12" font-family="monospace" fill="#64748B">W_A ∩ W_B ≠ ∅ → WAW Edge</text>
+
+    <!-- Concept 2: Partitioning -->
+    <rect x="385" y="55" width="300" height="50" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="400" y="75" font-size="14" font-weight="700" fill="#334155">Data-Parallel Partitioning</text>
+    <text x="400" y="95" font-size="12" font-family="monospace" fill="#64748B">256 Orthogonal Spawning Queues (Amdahl Bypass)</text>
+
+    <!-- Concept 3: Implicit Pointers -->
+    <rect x="720" y="55" width="300" height="50" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="735" y="75" font-size="14" font-weight="700" fill="#334155">Implicit Relations (Flaw)</text>
+    <text x="735" y="95" font-size="12" font-family="monospace" fill="#DC2626">EntityId pointers embedded in Structs (Invisible to DAG)</text>
+  </g>
+
+  <!-- ========================================== -->
+  <!-- LAYER 1: HEAP STORAGE (THE BOTTLENECK)     -->
+  <!-- ========================================== -->
+  <g transform="translate(60, 630)">
+    <rect width="1070" height="130" rx="12" fill="#F1F5F9" filter="url(#shadow)" stroke="#94A3B8" stroke-width="2"/>
+    <text x="30" y="35" font-size="14" font-weight="700" fill="#475569" letter-spacing="1">LAYER 1: HEAP STORAGE (THE BOTTLENECK)</text>
+
+    <!-- Concept 1: 32-bit Scalar -->
+    <rect x="50" y="55" width="300" height="50" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="65" y="75" font-size="14" font-weight="700" fill="#334155">32-Bit Scalar Identity</text>
+    <text x="65" y="95" font-size="12" font-family="monospace" fill="#DC2626">uint32_t (Susceptible to 2^32 exhaustion)</text>
+
+    <!-- Concept 2: std::vector -->
+    <rect x="385" y="55" width="300" height="50" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="400" y="75" font-size="14" font-weight="700" fill="#334155">Linear Sparse Matrix</text>
+    <text x="400" y="95" font-size="12" font-family="monospace" fill="#DC2626">std::vector&lt;EntityRecord&gt; (O(N) Iteration Scans)</text>
+
+    <!-- Concept 3: Heap Pointers -->
+    <rect x="720" y="55" width="300" height="50" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="735" y="75" font-size="14" font-weight="700" fill="#334155">Heap Allocations</text>
+    <text x="735" y="95" font-size="12" font-family="monospace" fill="#DC2626">Not Memory-Mappable (Contains virtual pointers)</text>
+  </g>
+
+  <!-- ========================================== -->
+  <!-- VERTICAL CONNECTORS (Arrows)               -->
+  <!-- ========================================== -->
+
+  <g stroke="#CBD5E1" stroke-width="2" fill="none">
+    <!-- Storage -> Concurrency -->
+    <path d="M 595 630 L 595 608" marker-end="url(#arrow)"/>
+    <path d="M 200 630 L 200 608" marker-end="url(#arrow)"/>
+    <path d="M 870 630 L 870 608" marker-end="url(#arrow)"/>
+
+    <!-- Concurrency -> Topology -->
+    <path d="M 595 470 L 595 448" marker-end="url(#arrow)"/>
+    <path d="M 200 470 L 200 448" marker-end="url(#arrow)"/>
+    <path d="M 870 470 L 870 448" marker-end="url(#arrow)"/>
+
+    <!-- Topology -> Execution -->
+    <path d="M 595 310 L 595 288" marker-end="url(#arrow)"/>
+    <path d="M 200 310 L 200 288" marker-end="url(#arrow)"/>
+    <path d="M 870 310 L 870 288" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- Annotations on Flow -->
+  <text x="605" y="622" font-size="11" font-weight="600" fill="#64748B" font-family="monospace">Vector Index Maps</text>
+  <text x="605" y="462" font-size="11" font-weight="600" fill="#64748B" font-family="monospace">Component Masks</text>
+  <text x="605" y="302" font-size="11" font-weight="600" fill="#64748B" font-family="monospace">Compile-Time Proxy</text>
+
+</svg>

@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1190 842" width="100%" height="100%" style="background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+
+  <defs>
+    <!-- Drop Shadows for Nodes -->
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0F172A" flood-opacity="0.08"/>
+    </filter>
+    <filter id="shadow-heavy" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#E11D48" flood-opacity="0.15"/>
+    </filter>
+
+    <!-- Blueprint Grid -->
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#E2E8F0" stroke-width="1"/>
+    </pattern>
+
+    <!-- Arrowheads -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748B"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#E11D48"/>
+    </marker>
+  </defs>
+
+  <!-- Background Grid -->
+  <rect width="100%" height="100%" fill="url(#grid)" />
+
+  <!-- Header -->
+  <text x="595" y="70" text-anchor="middle" font-size="32" font-weight="800" fill="#0F172A" letter-spacing="1">USAGI ENGINE: DISTRIBUTED HYPERGRAPH ARCHITECTURE</text>
+  <text x="595" y="100" text-anchor="middle" font-size="16" font-weight="500" fill="#64748B" letter-spacing="2">MATHEMATICAL ROADMAP (MARCH 2026)</text>
+  <text x="1140" y="800" text-anchor="end" font-size="14" font-style="italic" fill="#94A3B8">甘いいちご 🍓</text>
+
+  <!-- ========================================== -->
+  <!-- LAYER 4: EXECUTION & METAPROGRAMMING       -->
+  <!-- ========================================== -->
+  <g transform="translate(60, 150)">
+    <!-- Boundary Box -->
+    <rect width="1070" height="130" rx="12" fill="#FFFFFF" filter="url(#shadow-heavy)" stroke="#FDA4AF" stroke-width="2"/>
+    <text x="30" y="35" font-size="14" font-weight="700" fill="#E11D48" letter-spacing="1">LAYER 4: EXECUTION &amp; METAPROGRAMMING</text>
+
+    <!-- Concept 1: G_inf -->
+    <rect x="50" y="55" width="300" height="50" rx="6" fill="#FFF1F2" stroke="#FECDD3" stroke-width="1"/>
+    <text x="65" y="75" font-size="14" font-weight="700" fill="#BE123C">Continuous Pipelining (G_∞)</text>
+    <text x="65" y="95" font-size="12" font-family="monospace" fill="#9F1239">DataAccessFlags::Previous (RAW Severing)</text>
+
+    <!-- Concept 2: C++26 Declarative HSM -->
+    <rect x="385" y="55" width="300" height="50" rx="6" fill="#FFF1F2" stroke="#FECDD3" stroke-width="1"/>
+    <text x="400" y="75" font-size="14" font-weight="700" fill="#BE123C">C++26 Declarative HSM</text>
+    <text x="400" y="95" font-size="12" font-family="monospace" fill="#9F1239">[:trans_meta:], ^^{IntentRemove, IntentAdd}</text>
+
+    <!-- Concept 3: TaskWorkerPool -->
+    <rect x="720" y="55" width="300" height="50" rx="6" fill="#FFF1F2" stroke="#FECDD3" stroke-width="1"/>
+    <text x="735" y="75" font-size="14" font-weight="700" fill="#BE123C">Persistent Condition Worker Pool</text>
+    <text x="735" y="95" font-size="12" font-family="monospace" fill="#9F1239">Lock-free Poison Diffusion</text>
+  </g>
+
+  <!-- ========================================== -->
+  <!-- LAYER 3: TOPOLOGY & RELATIONS              -->
+  <!-- ========================================== -->
+  <g transform="translate(60, 310)">
+    <rect width="1070" height="130" rx="12" fill="#FFFFFF" filter="url(#shadow)" stroke="#FDBA74" stroke-width="2"/>
+    <text x="30" y="35" font-size="14" font-weight="700" fill="#EA580C" letter-spacing="1">LAYER 3: TOPOLOGY &amp; GRAPH REDUCTION</text>
+
+    <!-- Concept 1: Bipartite Edges -->
+    <rect x="50" y="55" width="300" height="50" rx="6" fill="#FFF7ED" stroke="#FED7AA" stroke-width="1"/>
+    <text x="65" y="75" font-size="14" font-weight="700" fill="#C2410C">Bipartite Graph Reduction</text>
+    <text x="65" y="95" font-size="12" font-family="monospace" fill="#9A3412">V ∩ E = ∅ (Reified Edge Entities)</text>
+
+    <!-- Concept 2: Transitive Closure -->
+    <rect x="385" y="55" width="300" height="50" rx="6" fill="#FFF7ED" stroke="#FED7AA" stroke-width="1"/>
+    <text x="400" y="75" font-size="14" font-weight="700" fill="#C2410C">O(1) JIT Transitive Closure</text>
+    <text x="400" y="95" font-size="12" font-family="monospace" fill="#9A3412">TransientEdgeIndex BFS Projection</text>
+
+    <!-- Concept 3: Matrix Intersection -->
+    <rect x="720" y="55" width="300" height="50" rx="6" fill="#FFF7ED" stroke="#FED7AA" stroke-width="1"/>
+    <text x="735" y="75" font-size="14" font-weight="700" fill="#C2410C">Table-Level Locking Bounds</text>
+    <text x="735" y="95" font-size="12" font-family="monospace" fill="#9A3412">W_k = W_k ∪ ⋃ S_e (Blast Radius Projection)</text>
+  </g>
+
+  <!-- ========================================== -->
+  <!-- LAYER 2: VIRTUALIZATION & SHADOWING        -->
+  <!-- ========================================== -->
+  <g transform="translate(60, 470)">
+    <rect width="1070" height="130" rx="12" fill="#FFFFFF" filter="url(#shadow)" stroke="#C084FC" stroke-width="2"/>
+    <text x="30" y="35" font-size="14" font-weight="700" fill="#9333EA" letter-spacing="1">LAYER 2: VIRTUALIZATION (THE SHADOW OVERLAY)</text>
+
+    <!-- Concept 1: Aggregator -->
+    <rect x="50" y="55" width="300" height="50" rx="6" fill="#FAF5FF" stroke="#E9D5FF" stroke-width="1"/>
+    <text x="65" y="75" font-size="14" font-weight="700" fill="#7E22CE">LayeredDatabaseAggregator</text>
+    <text x="65" y="95" font-size="12" font-family="monospace" fill="#6B21A8">Multi-domain Query Stacking</text>
+
+    <!-- Concept 2: Tombstones -->
+    <rect x="385" y="55" width="300" height="50" rx="6" fill="#FAF5FF" stroke="#E9D5FF" stroke-width="1"/>
+    <text x="400" y="75" font-size="14" font-weight="700" fill="#7E22CE">Virtual Page Table (Tombstones)</text>
+    <text x="400" y="95" font-size="12" font-family="monospace" fill="#6B21A8">active_lanes &amp;= ~shadow_mask</text>
+
+    <!-- Concept 3: Redirects -->
+    <rect x="720" y="55" width="300" height="50" rx="6" fill="#FAF5FF" stroke="#E9D5FF" stroke-width="1"/>
+    <text x="735" y="75" font-size="14" font-weight="700" fill="#7E22CE">Physical Redirects</text>
+    <text x="735" y="95" font-size="12" font-family="monospace" fill="#6B21A8">E_base → E_patch (TransientShadowIndex)</text>
+  </g>
+
+  <!-- ========================================== -->
+  <!-- LAYER 1: PHYSICAL STORAGE                  -->
+  <!-- ========================================== -->
+  <g transform="translate(60, 630)">
+    <rect width="1070" height="130" rx="12" fill="#FFFFFF" filter="url(#shadow)" stroke="#60A5FA" stroke-width="2"/>
+    <text x="30" y="35" font-size="14" font-weight="700" fill="#2563EB" letter-spacing="1">LAYER 1: PHYSICAL METAL (STORAGE)</text>
+
+    <!-- Concept 1: Coordinate System -->
+    <rect x="50" y="55" width="300" height="50" rx="6" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1"/>
+    <text x="65" y="75" font-size="14" font-weight="700" fill="#1D4ED8">128-Bit Spatial Directory</text>
+    <text x="65" y="95" font-size="12" font-family="monospace" fill="#1E40AF">EntityId(η, p, ρ, σ, flags)</text>
+
+    <!-- Concept 2: POD -->
+    <rect x="385" y="55" width="300" height="50" rx="6" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1"/>
+    <text x="400" y="75" font-size="14" font-weight="700" fill="#1D4ED8">Strictly POD Memory (Mmap-Ready)</text>
+    <text x="400" y="95" font-size="12" font-family="monospace" fill="#1E40AF">std::atomic_ref over alignment constraints</text>
+
+    <!-- Concept 3: Allocator -->
+    <rect x="720" y="55" width="300" height="50" rx="6" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1"/>
+    <text x="735" y="75" font-size="14" font-weight="700" fill="#1D4ED8">Orthogonal Hive Partitions</text>
+    <text x="735" y="95" font-size="12" font-family="monospace" fill="#1E40AF">Amdahl's Bypass (Zero-lock Spawning)</text>
+  </g>
+
+  <!-- ========================================== -->
+  <!-- VERTICAL CONNECTORS (Arrows)               -->
+  <!-- ========================================== -->
+
+  <g stroke="#94A3B8" stroke-width="2" fill="none">
+    <!-- Storage -> Virtualization -->
+    <path d="M 595 630 L 595 608" marker-end="url(#arrow)"/>
+    <path d="M 200 630 L 200 608" marker-end="url(#arrow)"/>
+    <path d="M 870 630 L 870 608" marker-end="url(#arrow)"/>
+
+    <!-- Virtualization -> Topology -->
+    <path d="M 595 470 L 595 448" marker-end="url(#arrow)"/>
+    <path d="M 200 470 L 200 448" marker-end="url(#arrow)"/>
+    <path d="M 870 470 L 870 448" marker-end="url(#arrow)"/>
+
+    <!-- Topology -> Execution -->
+    <path d="M 595 310 L 595 288" marker-end="url(#arrow-red)" stroke="#E11D48"/>
+    <path d="M 200 310 L 200 288" marker-end="url(#arrow-red)" stroke="#E11D48"/>
+    <path d="M 870 310 L 870 288" marker-end="url(#arrow-red)" stroke="#E11D48"/>
+  </g>
+
+  <!-- Annotations on Flow -->
+  <text x="605" y="622" font-size="11" font-weight="600" fill="#64748B" font-family="monospace">Memory Map Resolve</text>
+  <text x="605" y="462" font-size="11" font-weight="600" fill="#64748B" font-family="monospace">Aliasing Overlays</text>
+  <text x="605" y="302" font-size="11" font-weight="600" fill="#E11D48" font-family="monospace">Static Capability Proxy Compilation</text>
+
+</svg>
